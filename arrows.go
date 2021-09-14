@@ -47,6 +47,9 @@ type Game struct {
 	moves      int
 }
 
+//
+// setup game
+//
 func (g *Game) Setup(w, h, cw, ch int) {
 	g.screen = nil
 	g.width = w
@@ -77,6 +80,10 @@ func (g *Game) Setup(w, h, cw, ch int) {
 	}
 }
 
+//
+// shuffle arrows
+// (actually replace arrows where present)
+//
 func (g *Game) Shuffle() {
 	for y, row := range game.screen {
 		for x, col := range row {
@@ -87,6 +94,11 @@ func (g *Game) Shuffle() {
 	}
 }
 
+//
+// convert screen coordinates to game coordinates
+//
+// returns false if screen coordinates are outside game boundary
+//
 func (g *Game) Coords(x, y int) (int, int, bool) {
 	x /= g.cellwidth
 	y /= g.cellheight
@@ -98,14 +110,27 @@ func (g *Game) Coords(x, y int) (int, int, bool) {
 	return -1, -1, false
 }
 
+//
+// convert game coordinates to screen coordinates
+//
+// x,y: game coordinates
+// sx,sy: screen offset
+//
 func (g *Game) ScreenCoords(sx, sy, x, y int) (int, int) {
 	return sx + (x * g.cellwidth), sy + (y * g.cellheight)
 }
 
-func (g *Game) Update(x, y int, pressed bool) (int, int, bool) {
-	cx, cy, ok := g.Coords(x, y)
+//
+// update game based on screen coordinates
+// returns game coordinates (and false if outside of boundaries)
+//
+// pressed: move arrows at x,y
+// move: if false only remove arrow
+//
+func (g *Game) Update(x, y int, pressed, move bool) (cx, cy int, ok bool) {
+	cx, cy, ok = g.Coords(x, y)
 	if !ok {
-		return -1, -1, false
+		return
 	}
 
 	if pressed {
@@ -117,15 +142,20 @@ func (g *Game) Update(x, y int, pressed bool) (int, int, bool) {
 			}
 
 			if py != cy {
-				g.screen[cy][cx] = empty
-				g.moves++
-
 				if py == 0 {
 					g.count--
 					g.removed++
 				} else {
+					if !move {
+						return
+					}
+
 					g.screen[py][cx] = up
 				}
+
+				g.screen[cy][cx] = empty
+				g.moves++
+
 			}
 
 		case down:
@@ -133,15 +163,19 @@ func (g *Game) Update(x, y int, pressed bool) (int, int, bool) {
 			}
 
 			if py != cy {
-				g.screen[cy][cx] = empty
-				g.moves++
-
 				if py == g.height-1 {
 					g.count--
 					g.removed++
 				} else {
+					if !move {
+						return
+					}
 					g.screen[py][cx] = down
 				}
+
+				g.screen[cy][cx] = empty
+				g.moves++
+
 			}
 
 		case left:
@@ -149,15 +183,19 @@ func (g *Game) Update(x, y int, pressed bool) (int, int, bool) {
 			}
 
 			if px != cx {
-				g.screen[cy][cx] = empty
-				g.moves++
-
 				if px == 0 {
 					g.count--
 					g.removed++
 				} else {
+					if move {
+						return
+					}
+
 					g.screen[cy][px] = left
 				}
+
+				g.screen[cy][cx] = empty
+				g.moves++
 			}
 
 		case right:
@@ -165,20 +203,24 @@ func (g *Game) Update(x, y int, pressed bool) (int, int, bool) {
 			}
 
 			if px != cx {
-				g.screen[cy][cx] = empty
-				g.moves++
-
 				if px == g.width-1 {
 					g.count--
 					g.removed++
 				} else {
+					if move {
+						return
+					}
+
 					g.screen[cy][px] = right
 				}
+
+				g.screen[cy][cx] = empty
+				g.moves++
 			}
 		}
 	}
 
-	return cx, cy, true
+	return
 }
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -233,7 +275,7 @@ func drawScreen(s tcell.Screen) {
 func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
 	msg := "                                       "
 
-	if cx, cy, ok = game.Update(x-sx-1, y-sy-1, pressed); ok {
+	if cx, cy, ok = game.Update(x-sx-1, y-sy-1, pressed, true); ok {
 		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
 
 		msg = fmt.Sprintf("moves=%v remain=%v removed=%v x=%v y=%v  ",
@@ -318,16 +360,26 @@ func main() {
 				if _, _, ok := checkScreen(s, cx+2, cy, false); ok {
 					cx += 2
 				}
-			} else if crune == ' ' {
+			} else if crune == ' ' { // hit
 				checkScreen(s, cx, cy, true)
-			} else if crune == 'R' || crune == 'r' {
+			} else if crune == 'R' || crune == 'r' { // reset
 				game.Setup(width, height, cw, ch)
 				s.Clear()
 				drawScreen(s)
-			} else if crune == 'S' || crune == 's' {
+			} else if crune == 'S' || crune == 's' { // reshuffle
 				game.Shuffle()
 				s.Clear()
 				drawScreen(s)
+			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
+				for y := 1; y < game.height-1; y++ {
+					for x := 1; x < game.width-1; x++ {
+						x, y := game.ScreenCoords(0, 0, x, y)
+						game.Update(x, y, true, false)
+					}
+				}
+
+				s.Clear()
+				checkScreen(s, cx, cy, false)
 			}
 		case *tcell.EventMouse:
 			cx, cy = ev.Position()
