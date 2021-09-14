@@ -18,49 +18,167 @@ const (
 	right = '\u2b95' // '\u2192'
 	empty = ' '
 
-	sx = 1
-	sy = 1
+	sx = 2
+	sy = 2
+	cw = 2
+	ch = 1
 )
 
 var (
 	width  = 20
 	height = 20
 
-	dirs    = []rune{up, down, left, right}
-	screen  [][]rune
-	count   int
-	removed int
-	moves   int
+	dirs = []rune{up, down, left, right}
+	game Game
 
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 	boxStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	revStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorGreen)
 )
 
-func setupScreen() {
-	screen = nil
-	count = 0
-	removed = 0
-	moves = 0
+type Game struct {
+	screen     [][]rune
+	width      int
+	height     int
+	cellwidth  int
+	cellheight int
+	count      int
+	removed    int
+	moves      int
+}
 
-	for i := 0; i < height; i++ {
+func (g *Game) Setup(w, h, cw, ch int) {
+	g.screen = nil
+	g.width = w
+	g.height = h
+	g.cellwidth = cw
+	g.cellheight = ch
+	g.count = 0
+	g.removed = 0
+	g.moves = 0
+
+	for i := 0; i < g.height; i++ {
 		var line []rune
 
-		for j := 0; j < width; j++ {
+		for j := 0; j < g.width; j++ {
 			cell := dirs[rand.Intn(len(dirs))]
 
-			if i == 0 || i == height-1 || j == 0 || j == width-1 {
+			if i == 0 || i == g.height-1 || j == 0 || j == g.width-1 {
 				// empty cell at the border, to make it easier to check if we can move
 				cell = empty
 			} else {
-				count++
+				g.count++
 			}
 
 			line = append(line, cell)
 		}
 
-		screen = append(screen, line)
+		g.screen = append(g.screen, line)
 	}
+}
+
+func (g *Game) Shuffle() {
+	for y, row := range game.screen {
+		for x, col := range row {
+			if col != empty {
+				game.screen[y][x] = dirs[rand.Intn(len(dirs))]
+			}
+		}
+	}
+}
+
+func (g *Game) Coords(x, y int) (int, int, bool) {
+	x /= g.cellwidth
+	y /= g.cellheight
+
+	if x > 0 && x < g.width-1 && y > 0 && y < g.height-1 {
+		return x, y, true
+	}
+
+	return -1, -1, false
+}
+
+func (g *Game) ScreenCoords(sx, sy, x, y int) (int, int) {
+	return sx + (x * g.cellwidth), sy + (y * g.cellheight)
+}
+
+func (g *Game) Update(x, y int, pressed bool) (int, int, bool) {
+	cx, cy, ok := g.Coords(x, y)
+	if !ok {
+		return -1, -1, false
+	}
+
+	if pressed {
+		var px, py int
+
+		switch g.screen[cy][cx] {
+		case up:
+			for py = cy; py > 0 && g.screen[py-1][cx] == empty; py-- {
+			}
+
+			if py != cy {
+				g.screen[cy][cx] = empty
+				g.moves++
+
+				if py == 0 {
+					g.count--
+					g.removed++
+				} else {
+					g.screen[py][cx] = up
+				}
+			}
+
+		case down:
+			for py = cy; py < g.height-1 && g.screen[py+1][cx] == empty; py++ {
+			}
+
+			if py != cy {
+				g.screen[cy][cx] = empty
+				g.moves++
+
+				if py == g.height-1 {
+					g.count--
+					g.removed++
+				} else {
+					g.screen[py][cx] = down
+				}
+			}
+
+		case left:
+			for px = cx; px > 0 && g.screen[cy][px-1] == empty; px-- {
+			}
+
+			if px != cx {
+				g.screen[cy][cx] = empty
+				g.moves++
+
+				if px == 0 {
+					g.count--
+					g.removed++
+				} else {
+					g.screen[cy][px] = left
+				}
+			}
+
+		case right:
+			for px = cx; px < g.width-1 && g.screen[cy][px+1] == empty; px++ {
+			}
+
+			if px != cx {
+				g.screen[cy][cx] = empty
+				g.moves++
+
+				if px == g.width-1 {
+					g.count--
+					g.removed++
+				} else {
+					g.screen[cy][px] = right
+				}
+			}
+		}
+	}
+
+	return cx, cy, true
 }
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -82,12 +200,12 @@ func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string
 func drawScreen(s tcell.Screen) {
 	x1 := sx
 	y1 := sy
-	x2 := x1 + len(screen[0])*2 + 1
-	y2 := y1 + len(screen) + 1
+	x2 := x1 + (game.width * 2) + 1
+	y2 := y1 + game.height + 1
 	style := boxStyle
 
 	// Fill screen
-	for y, row := range screen {
+	for y, row := range game.screen {
 		for x, col := range row {
 			s.SetContent(x1+(2*x)+1, y1+y+1, col, nil, style)
 		}
@@ -112,88 +230,19 @@ func drawScreen(s tcell.Screen) {
 	}
 }
 
-func updateScreen(s tcell.Screen, x, y int, pressed bool) (int, int, bool) {
-	if x > sx+2 && x < sx+(width*2)-1 && y > sy+1 && y < sy+height {
-		cx := (x - sx - 2) / 2
-		cy := y - sy - 1
+func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
+	msg := "                                       "
 
-		x = (cx * 2) + 2
+	if cx, cy, ok = game.Update(x-sx-1, y-sy-1, pressed); ok {
+		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
 
-		if pressed {
-			var px, py int
-
-			switch screen[cy][cx] {
-			case up:
-				for py = cy; py > 0 && screen[py-1][cx] == empty; py-- {
-				}
-
-				if py != cy {
-					screen[cy][cx] = empty
-					moves++
-
-					if py == 0 {
-						count--
-						removed++
-					} else {
-						screen[py][cx] = up
-					}
-				}
-
-			case down:
-				for py = cy; py < height-1 && screen[py+1][cx] == empty; py++ {
-				}
-
-				if py != cy {
-					screen[cy][cx] = empty
-					moves++
-
-					if py == height-1 {
-						count--
-						removed++
-					} else {
-						screen[py][cx] = down
-					}
-				}
-
-			case left:
-				for px = cx; px > 0 && screen[cy][px-1] == empty; px-- {
-				}
-
-				if px != cx {
-					screen[cy][cx] = empty
-					moves++
-
-					if px == 0 {
-						count--
-						removed++
-					} else {
-						screen[cy][px] = left
-					}
-				}
-
-			case right:
-				for px = cx; px < width-1 && screen[cy][px+1] == empty; px++ {
-				}
-
-				if px != cx {
-					screen[cy][cx] = empty
-					moves++
-
-					if px == width-1 {
-						count--
-						removed++
-					} else {
-						screen[cy][px] = right
-					}
-				}
-			}
-		}
-
-		drawScreen(s)
-		return cx, cy, true
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v x=%v y=%v  ",
+			game.moves, game.count, game.removed, cx, cy)
 	}
 
-	return -1, -1, false
+	drawScreen(s)
+	drawText(s, sx, sy+height+2, sx+len(msg)+1, sy+height+2, boxStyle, msg)
+	return
 }
 
 func main() {
@@ -223,7 +272,7 @@ func main() {
 	s.Clear()
 
 	// Draw initial screen
-	setupScreen()
+	game.Setup(width, height, cw, ch)
 	drawScreen(s)
 
 	// Event loop
@@ -231,6 +280,9 @@ func main() {
 		s.Fini()
 		os.Exit(0)
 	}
+
+	cx, cy := game.ScreenCoords(sx+1, sy+1, 1, 1)
+	s.ShowCursor(cx, cy)
 
 	for {
 		// Update screen
@@ -244,26 +296,43 @@ func main() {
 		case *tcell.EventResize:
 			s.Sync()
 		case *tcell.EventKey:
-			if ev.Key() == tcell.KeyEscape || ev.Key() == tcell.KeyCtrlC {
+			ckey, crune := ev.Key(), ev.Rune()
+
+			if ckey == tcell.KeyEscape || ckey == tcell.KeyCtrlC {
 				quit()
-			} else if ev.Key() == tcell.KeyCtrlL {
+			} else if ckey == tcell.KeyCtrlL {
 				s.Sync()
-			} else if ev.Rune() == 'R' || ev.Rune() == 'r' {
+			} else if ckey == tcell.KeyUp {
+				if _, _, ok := checkScreen(s, cx, cy-1, false); ok {
+					cy--
+				}
+			} else if ckey == tcell.KeyDown {
+				if _, _, ok := checkScreen(s, cx, cy+1, false); ok {
+					cy++
+				}
+			} else if ckey == tcell.KeyLeft {
+				if _, _, ok := checkScreen(s, cx-2, cy, false); ok {
+					cx -= 2
+				}
+			} else if ckey == tcell.KeyRight {
+				if _, _, ok := checkScreen(s, cx+2, cy, false); ok {
+					cx += 2
+				}
+			} else if crune == ' ' {
+				checkScreen(s, cx, cy, true)
+			} else if crune == 'R' || crune == 'r' {
+				game.Setup(width, height, cw, ch)
 				s.Clear()
-				setupScreen()
+				drawScreen(s)
+			} else if crune == 'S' || crune == 's' {
+				game.Shuffle()
+				s.Clear()
 				drawScreen(s)
 			}
 		case *tcell.EventMouse:
-			x, y := ev.Position()
-
+			cx, cy = ev.Position()
 			button := ev.Buttons() & tcell.ButtonMask(0xff)
-
-			msg := "                               "
-			if _, _, ok := updateScreen(s, x, y, button != tcell.ButtonNone); ok {
-				msg = fmt.Sprintf("moves=%v remain=%v removed=%v  ", moves, count, removed)
-			}
-
-			drawText(s, 1, height+3, len(msg)+1, height+3, boxStyle, msg)
+			checkScreen(s, cx, cy, button != tcell.ButtonNone)
 		}
 	}
 }
