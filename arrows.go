@@ -124,16 +124,16 @@ func (g *Game) ScreenCoords(sx, sy, x, y int) (int, int) {
 // update game based on screen coordinates
 // returns game coordinates (and false if outside of boundaries)
 //
-// pressed: move arrows at x,y
-// move: if false only remove arrow
+// remove: remove arrows at x,y
+// move: if not out of boundary move arrow to last empty position
 //
-func (g *Game) Update(x, y int, pressed, move bool) (cx, cy int, ok bool) {
+func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 	cx, cy, ok = g.Coords(x, y)
 	if !ok {
 		return
 	}
 
-	if pressed {
+	if remove {
 		var px, py int
 
 		switch g.screen[cy][cx] {
@@ -187,7 +187,7 @@ func (g *Game) Update(x, y int, pressed, move bool) (cx, cy int, ok bool) {
 					g.count--
 					g.removed++
 				} else {
-					if move {
+					if !move {
 						return
 					}
 
@@ -207,7 +207,7 @@ func (g *Game) Update(x, y int, pressed, move bool) (cx, cy int, ok bool) {
 					g.count--
 					g.removed++
 				} else {
-					if move {
+					if !move {
 						return
 					}
 
@@ -273,13 +273,12 @@ func drawScreen(s tcell.Screen) {
 }
 
 func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
-	msg := "                                       "
+	msg := "                                "
 
 	if cx, cy, ok = game.Update(x-sx-1, y-sy-1, pressed, true); ok {
 		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
 
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v x=%v y=%v  ",
-			game.moves, game.count, game.removed, cx, cy)
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v", game.moves, game.count, game.removed)
 	}
 
 	drawScreen(s)
@@ -380,11 +379,29 @@ func main() {
 
 				s.Clear()
 				checkScreen(s, cx, cy, false)
+			} else if crune == 'P' || crune == 'p' { // auto play
+				s.PostEvent(tcell.NewEventInterrupt(nil))
 			}
 		case *tcell.EventMouse:
 			cx, cy = ev.Position()
 			button := ev.Buttons() & tcell.ButtonMask(0xff)
 			checkScreen(s, cx, cy, button != tcell.ButtonNone)
+
+		case *tcell.EventInterrupt:
+			for y := 1; y < game.height-1; y++ {
+				for x := 1; x < game.width-1; x++ {
+					x, y := game.ScreenCoords(0, 0, x, y)
+					game.Update(x, y, true, false)
+				}
+			}
+
+			s.Clear()
+			checkScreen(s, cx, cy, false)
+
+			if game.count > 0 {
+				game.Shuffle()
+				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
+			}
 		}
 	}
 }
