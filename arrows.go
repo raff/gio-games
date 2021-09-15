@@ -4,11 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"time"
 
 	"github.com/gdamore/tcell"
+	"github.com/raff/arrows/game"
 )
 
 const (
@@ -28,200 +28,13 @@ var (
 	width  = 20
 	height = 20
 
-	dirs = []rune{up, down, left, right}
-	game Game
+	dirs  = []rune{empty, up, down, left, right}
+	agame game.Game
 
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 	boxStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	revStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorGreen)
 )
-
-type Game struct {
-	screen     [][]rune
-	width      int
-	height     int
-	cellwidth  int
-	cellheight int
-	count      int
-	removed    int
-	moves      int
-}
-
-//
-// setup game
-//
-func (g *Game) Setup(w, h, cw, ch int) {
-	g.screen = nil
-	g.width = w
-	g.height = h
-	g.cellwidth = cw
-	g.cellheight = ch
-	g.count = 0
-	g.removed = 0
-	g.moves = 0
-
-	for i := 0; i < g.height; i++ {
-		var line []rune
-
-		for j := 0; j < g.width; j++ {
-			cell := dirs[rand.Intn(len(dirs))]
-
-			if i == 0 || i == g.height-1 || j == 0 || j == g.width-1 {
-				// empty cell at the border, to make it easier to check if we can move
-				cell = empty
-			} else {
-				g.count++
-			}
-
-			line = append(line, cell)
-		}
-
-		g.screen = append(g.screen, line)
-	}
-}
-
-//
-// shuffle arrows
-// (actually replace arrows where present)
-//
-func (g *Game) Shuffle() {
-	for y, row := range game.screen {
-		for x, col := range row {
-			if col != empty {
-				game.screen[y][x] = dirs[rand.Intn(len(dirs))]
-			}
-		}
-	}
-}
-
-//
-// convert screen coordinates to game coordinates
-//
-// returns false if screen coordinates are outside game boundary
-//
-func (g *Game) Coords(x, y int) (int, int, bool) {
-	x /= g.cellwidth
-	y /= g.cellheight
-
-	if x > 0 && x < g.width-1 && y > 0 && y < g.height-1 {
-		return x, y, true
-	}
-
-	return -1, -1, false
-}
-
-//
-// convert game coordinates to screen coordinates
-//
-// x,y: game coordinates
-// sx,sy: screen offset
-//
-func (g *Game) ScreenCoords(sx, sy, x, y int) (int, int) {
-	return sx + (x * g.cellwidth), sy + (y * g.cellheight)
-}
-
-//
-// update game based on screen coordinates
-// returns game coordinates (and false if outside of boundaries)
-//
-// remove: remove arrows at x,y
-// move: if not out of boundary move arrow to last empty position
-//
-func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
-	cx, cy, ok = g.Coords(x, y)
-	if !ok {
-		return
-	}
-
-	if remove {
-		var px, py int
-
-		switch g.screen[cy][cx] {
-		case up:
-			for py = cy; py > 0 && g.screen[py-1][cx] == empty; py-- {
-			}
-
-			if py != cy {
-				if py == 0 {
-					g.count--
-					g.removed++
-				} else {
-					if !move {
-						return
-					}
-
-					g.screen[py][cx] = up
-				}
-
-				g.screen[cy][cx] = empty
-				g.moves++
-
-			}
-
-		case down:
-			for py = cy; py < g.height-1 && g.screen[py+1][cx] == empty; py++ {
-			}
-
-			if py != cy {
-				if py == g.height-1 {
-					g.count--
-					g.removed++
-				} else {
-					if !move {
-						return
-					}
-					g.screen[py][cx] = down
-				}
-
-				g.screen[cy][cx] = empty
-				g.moves++
-
-			}
-
-		case left:
-			for px = cx; px > 0 && g.screen[cy][px-1] == empty; px-- {
-			}
-
-			if px != cx {
-				if px == 0 {
-					g.count--
-					g.removed++
-				} else {
-					if !move {
-						return
-					}
-
-					g.screen[cy][px] = left
-				}
-
-				g.screen[cy][cx] = empty
-				g.moves++
-			}
-
-		case right:
-			for px = cx; px < g.width-1 && g.screen[cy][px+1] == empty; px++ {
-			}
-
-			if px != cx {
-				if px == g.width-1 {
-					g.count--
-					g.removed++
-				} else {
-					if !move {
-						return
-					}
-
-					g.screen[cy][px] = right
-				}
-
-				g.screen[cy][cx] = empty
-				g.moves++
-			}
-		}
-	}
-
-	return
-}
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
 	row := y1
@@ -242,14 +55,14 @@ func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string
 func drawScreen(s tcell.Screen) {
 	x1 := sx
 	y1 := sy
-	x2 := x1 + (game.width * 2) + 1
-	y2 := y1 + game.height + 1
+	x2 := x1 + (agame.Width * 2) + 1
+	y2 := y1 + agame.Height + 1
 	style := boxStyle
 
 	// Fill screen
-	for y, row := range game.screen {
+	for y, row := range agame.Screen {
 		for x, col := range row {
-			s.SetContent(x1+(2*x)+1, y1+y+1, col, nil, style)
+			s.SetContent(x1+(2*x)+1, y1+y+1, dirs[col], nil, style)
 		}
 	}
 
@@ -275,10 +88,10 @@ func drawScreen(s tcell.Screen) {
 func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
 	msg := "                                "
 
-	if cx, cy, ok = game.Update(x-sx-1, y-sy-1, pressed, true); ok {
-		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
+	if cx, cy, ok = agame.Update(x-sx-1, y-sy-1, pressed, true); ok {
+		s.ShowCursor(agame.ScreenCoords(sx+1, sy+1, cx, cy))
 
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v", game.moves, game.count, game.removed)
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v", agame.Moves, agame.Count, agame.Removed)
 	}
 
 	drawScreen(s)
@@ -298,8 +111,6 @@ func main() {
 	width += 2  // add border
 	height += 2 // to simplify boundary checks
 
-	rand.Seed(time.Now().Unix())
-
 	// Initialize screen
 	s, err := tcell.NewScreen()
 	if err != nil {
@@ -313,7 +124,7 @@ func main() {
 	s.Clear()
 
 	// Draw initial screen
-	game.Setup(width, height, cw, ch)
+	agame.Setup(width, height, cw, ch)
 	drawScreen(s)
 
 	// Event loop
@@ -322,7 +133,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	cx, cy := game.ScreenCoords(sx+1, sy+1, 1, 1)
+	cx, cy := agame.ScreenCoords(sx+1, sy+1, 1, 1)
 	s.ShowCursor(cx, cy)
 
 	for {
@@ -362,18 +173,18 @@ func main() {
 			} else if crune == ' ' { // hit
 				checkScreen(s, cx, cy, true)
 			} else if crune == 'R' || crune == 'r' { // reset
-				game.Setup(width, height, cw, ch)
+				agame.Setup(width, height, cw, ch)
 				s.Clear()
 				drawScreen(s)
 			} else if crune == 'S' || crune == 's' { // reshuffle
-				game.Shuffle()
+				agame.Shuffle()
 				s.Clear()
 				drawScreen(s)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
-				for y := 1; y < game.height-1; y++ {
-					for x := 1; x < game.width-1; x++ {
-						x, y := game.ScreenCoords(0, 0, x, y)
-						game.Update(x, y, true, false)
+				for y := 1; y < agame.Height-1; y++ {
+					for x := 1; x < agame.Width-1; x++ {
+						x, y := agame.ScreenCoords(0, 0, x, y)
+						agame.Update(x, y, true, false)
 					}
 				}
 
@@ -388,18 +199,18 @@ func main() {
 			checkScreen(s, cx, cy, button != tcell.ButtonNone)
 
 		case *tcell.EventInterrupt:
-			for y := 1; y < game.height-1; y++ {
-				for x := 1; x < game.width-1; x++ {
-					x, y := game.ScreenCoords(0, 0, x, y)
-					game.Update(x, y, true, false)
+			for y := 1; y < agame.Height-1; y++ {
+				for x := 1; x < agame.Width-1; x++ {
+					x, y := agame.ScreenCoords(0, 0, x, y)
+					agame.Update(x, y, true, false)
 				}
 			}
 
 			s.Clear()
 			checkScreen(s, cx, cy, false)
 
-			if game.count > 0 {
-				game.Shuffle()
+			if agame.Count > 0 {
+				agame.Shuffle()
 				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
 			}
 		}
