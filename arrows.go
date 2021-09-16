@@ -172,6 +172,12 @@ func main() {
 				}
 			} else if crune == ' ' { // hit
 				checkScreen(s, cx, cy, true)
+			} else if crune == 'U' || crune == 'u' { // undo
+				if x, y, ok := agame.Undo(); ok {
+					cx, cy = agame.ScreenCoords(sx+1, sy+1, x, y)
+					s.ShowCursor(cx, cy)
+					drawScreen(s)
+				}
 			} else if crune == 'R' || crune == 'r' { // reset
 				agame.Setup(width, height, cw, ch)
 				s.Clear()

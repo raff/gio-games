@@ -18,6 +18,16 @@ const (
 	DirCount = 4
 )
 
+type Move struct {
+	X1 int
+	Y1 int
+	D1 Dir
+
+	X2 int
+	Y2 int
+	D2 Dir
+}
+
 type Game struct {
 	Screen  [][]Dir
 	Width   int
@@ -28,6 +38,25 @@ type Game struct {
 
 	cellwidth  int
 	cellheight int
+
+	stack []Move
+}
+
+func (g *Game) Push(x1, y1 int, d1 Dir, x2, y2 int, d2 Dir) {
+	g.stack = append(g.stack, Move{X1: x1, Y1: y1, D1: d1, X2: x2, Y2: y2, D2: d2})
+}
+
+func (g *Game) Pop() *Move {
+	l := len(g.stack)
+
+	if l == 0 {
+		return nil
+	}
+
+	move := g.stack[l-1]
+	g.stack = g.stack[:l-1]
+
+	return &move
 }
 
 //
@@ -43,6 +72,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 
 	g.cellwidth = cw
 	g.cellheight = ch
+	g.stack = g.stack[:0]
 
 	rand.Seed(time.Now().Unix())
 
@@ -78,6 +108,8 @@ func (g *Game) Shuffle() {
 			}
 		}
 	}
+
+	g.stack = g.stack[:0]
 }
 
 //
@@ -139,6 +171,7 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 					g.Screen[py][cx] = Up
 				}
 
+				g.Push(cx, py, Empty, cx, cy, g.Screen[cy][cx])
 				g.Screen[cy][cx] = Empty
 				g.Moves++
 
@@ -159,6 +192,7 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 					g.Screen[py][cx] = Down
 				}
 
+				g.Push(cx, py, Empty, cx, cy, g.Screen[cy][cx])
 				g.Screen[cy][cx] = Empty
 				g.Moves++
 
@@ -180,6 +214,7 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 					g.Screen[cy][px] = Left
 				}
 
+				g.Push(px, cy, Empty, cx, cy, g.Screen[cy][cx])
 				g.Screen[cy][cx] = Empty
 				g.Moves++
 			}
@@ -200,6 +235,7 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 					g.Screen[cy][px] = Right
 				}
 
+				g.Push(px, cy, Empty, cx, cy, g.Screen[cy][cx])
 				g.Screen[cy][cx] = Empty
 				g.Moves++
 			}
@@ -207,4 +243,14 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 	}
 
 	return
+}
+
+func (g *Game) Undo() (cx, cy int, ok bool) {
+	if m := g.Pop(); m != nil {
+		g.Screen[m.Y1][m.X1] = m.D1
+		g.Screen[m.Y2][m.X2] = m.D2
+		return m.X2, m.Y2, true
+	}
+
+	return -1, -1, false
 }
