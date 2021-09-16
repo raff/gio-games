@@ -91,7 +91,7 @@ func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
 	if cx, cy, ok = agame.Update(x-sx-1, y-sy-1, pressed, true); ok {
 		s.ShowCursor(agame.ScreenCoords(sx+1, sy+1, cx, cy))
 
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v", agame.Moves, agame.Count, agame.Removed)
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v   ", agame.Moves, agame.Count, agame.Removed)
 	}
 
 	drawScreen(s)
@@ -180,11 +180,9 @@ func main() {
 				}
 			} else if crune == 'R' || crune == 'r' { // reset
 				agame.Setup(width, height, cw, ch)
-				s.Clear()
 				drawScreen(s)
 			} else if crune == 'S' || crune == 's' { // reshuffle
 				agame.Shuffle()
-				s.Clear()
 				drawScreen(s)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
 				for y := 1; y < agame.Height-1; y++ {
@@ -194,7 +192,6 @@ func main() {
 					}
 				}
 
-				s.Clear()
 				checkScreen(s, cx, cy, false)
 			} else if crune == 'P' || crune == 'p' { // auto play
 				s.PostEvent(tcell.NewEventInterrupt(nil))
@@ -212,7 +209,6 @@ func main() {
 				}
 			}
 
-			s.Clear()
 			checkScreen(s, cx, cy, false)
 
 			if agame.Count > 0 {
