@@ -184,6 +184,9 @@ func audioPlay(mov game.Updates) {
 
 	case game.None:
 		s = audioBuffer.Streamer(audioLimits[1], audioLimits[2])
+
+	case game.Invalid:
+		return
 	}
 
 	speaker.Play(s)
@@ -304,7 +307,9 @@ func main() {
 			cx, cy = ev.Position()
 			pressed := ev.Buttons()&tcell.ButtonMask(0xff) != tcell.ButtonNone
 			_, _, mov := checkScreen(s, cx, cy, ops[pressed])
-			audioPlay(mov)
+			if pressed {
+				audioPlay(mov)
+			}
 
 		case *tcell.EventInterrupt:
 			for y := 1; y < agame.Height-1; y++ {
