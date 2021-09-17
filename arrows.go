@@ -52,8 +52,11 @@ var (
 	//go:embed stop.wav
 	wavStop []byte
 
+	//go:embed shuffle.wav
+	wavShuffle []byte
+
 	audioBuffer *beep.Buffer
-	audioLimits [3]int
+	audioLimits [4]int
 )
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -161,6 +164,12 @@ func audioInit() {
 	}
 	defer audioStop.Close()
 
+	audioShuffle, _, err := wav.Decode(bytes.NewBuffer(wavShuffle))
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	defer audioShuffle.Close()
+
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 
 	audioBuffer = beep.NewBuffer(format)
@@ -170,6 +179,8 @@ func audioInit() {
 	audioLimits[1] = audioBuffer.Len() // audioLimits[0] to audioLimits[1]
 	audioBuffer.Append(audioStop)
 	audioLimits[2] = audioBuffer.Len() // audioLimits[1] to audioLimits[2]
+	audioBuffer.Append(audioShuffle)
+	audioLimits[3] = audioBuffer.Len() // audioLimits[2] to audioLimits[3]
 }
 
 func audioPlay(mov game.Updates) {
@@ -184,6 +195,9 @@ func audioPlay(mov game.Updates) {
 
 	case game.None:
 		s = audioBuffer.Streamer(audioLimits[1], audioLimits[2])
+
+	case game.Shuffle:
+		s = audioBuffer.Streamer(audioLimits[2], audioLimits[3])
 
 	case game.Invalid:
 		return
@@ -289,6 +303,7 @@ func main() {
 				agame.Setup(width, height, cw, ch)
 				drawScreen(s)
 			} else if crune == 'S' || crune == 's' { // reshuffle
+				audioPlay(game.Shuffle)
 				agame.Shuffle()
 				drawScreen(s)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
@@ -322,6 +337,7 @@ func main() {
 			checkScreen(s, cx, cy, game.None)
 
 			if agame.Count > 0 {
+				audioPlay(game.Shuffle)
 				agame.Shuffle()
 				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
 			}

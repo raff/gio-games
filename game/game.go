@@ -23,6 +23,7 @@ const (
 	None    = Updates(1) // cannot move
 	Remove  = Updates(2) // remove arrow/removed
 	Move    = Updates(4) // move arrow/moved
+	Shuffle = Updates(5) // this is actually only used for playing sound effects
 )
 
 type FromTo struct {
