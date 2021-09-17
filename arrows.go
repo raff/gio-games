@@ -18,8 +18,6 @@ const (
 	right = '\u2b95' // '\u2192'
 	empty = ' '
 
-	sx = 2
-	sy = 2
 	cw = 2
 	ch = 1
 )
@@ -27,6 +25,9 @@ const (
 var (
 	width  = 20
 	height = 20
+
+	sx = 2
+	sy = 2
 
 	dirs  = []rune{empty, up, down, left, right}
 	agame game.Game
@@ -99,6 +100,28 @@ func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
 	return
 }
 
+func centerScreen(s tcell.Screen) (int, int, bool) {
+	gw, gh := agame.Width*2+2, agame.Width+2
+	w, h := s.Size()
+
+	px, py := sx, sy
+
+	if w > gw {
+		sx = (w - gw) / 2 // center horizontally
+	}
+
+	if h > gh {
+		sy = (h - gh) / 2 // center vertically
+	}
+
+	if sx != px || sy != py {
+		s.Clear()
+		return agame.Coords(px, py)
+	}
+
+	return -1, -1, false
+}
+
 func main() {
 	flag.IntVar(&width, "width", width, "screen width")
 	flag.IntVar(&height, "height", height, "screen height")
@@ -147,6 +170,13 @@ func main() {
 		switch ev := ev.(type) {
 		case *tcell.EventResize:
 			s.Sync()
+
+			if x, y, ok := centerScreen(s); ok {
+				cx, cy = agame.ScreenCoords(sx+1, sy+1, x, y)
+				s.ShowCursor(cx, cy)
+				drawScreen(s)
+			}
+
 		case *tcell.EventKey:
 			ckey, crune := ev.Key(), ev.Rune()
 
