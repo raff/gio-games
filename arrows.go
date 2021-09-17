@@ -49,8 +49,11 @@ var (
 	//go:embed move.wav
 	wavMove []byte
 
+	//go:embed stop.wav
+	wavStop []byte
+
 	audioBuffer *beep.Buffer
-	audioLimits [2]int
+	audioLimits [3]int
 )
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -152,6 +155,12 @@ func audioInit() {
 	}
 	defer audioMove.Close()
 
+	audioStop, _, err := wav.Decode(bytes.NewBuffer(wavStop))
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	defer audioStop.Close()
+
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 
 	audioBuffer = beep.NewBuffer(format)
@@ -159,15 +168,22 @@ func audioInit() {
 	audioLimits[0] = audioBuffer.Len() // 0 to audioLimits[0]
 	audioBuffer.Append(audioMove)
 	audioLimits[1] = audioBuffer.Len() // audioLimits[0] to audioLimits[1]
+	audioBuffer.Append(audioStop)
+	audioLimits[2] = audioBuffer.Len() // audioLimits[1] to audioLimits[2]
 }
 
-func audioPlay(first bool) {
+func audioPlay(mov game.Updates) {
 	var s beep.StreamSeeker
 
-	if first {
+	switch mov {
+	case game.Remove:
 		s = audioBuffer.Streamer(0, audioLimits[0])
-	} else {
+
+	case game.Move:
 		s = audioBuffer.Streamer(audioLimits[0], audioLimits[1])
+
+	case game.None:
+		s = audioBuffer.Streamer(audioLimits[1], audioLimits[2])
 	}
 
 	speaker.Play(s)
@@ -257,9 +273,8 @@ func main() {
 					cx += 2
 				}
 			} else if crune == ' ' { // hit
-				if _, _, mov := checkScreen(s, cx, cy, game.Move); mov > game.None {
-					audioPlay(mov == game.Remove)
-				}
+				_, _, mov := checkScreen(s, cx, cy, game.Move)
+				audioPlay(mov)
 
 			} else if crune == 'U' || crune == 'u' { // undo
 				if x, y, ok := agame.Undo(); ok {
@@ -288,9 +303,8 @@ func main() {
 		case *tcell.EventMouse:
 			cx, cy = ev.Position()
 			pressed := ev.Buttons()&tcell.ButtonMask(0xff) != tcell.ButtonNone
-			if _, _, mov := checkScreen(s, cx, cy, ops[pressed]); mov > game.None {
-				audioPlay(mov == game.Remove)
-			}
+			_, _, mov := checkScreen(s, cx, cy, ops[pressed])
+			audioPlay(mov)
 
 		case *tcell.EventInterrupt:
 			for y := 1; y < agame.Height-1; y++ {
