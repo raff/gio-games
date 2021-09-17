@@ -1,14 +1,21 @@
 package main
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"github.com/gdamore/tcell"
+	_ "embed"
+
 	"github.com/raff/arrows/game"
+
+	"github.com/faiface/beep"
+	"github.com/faiface/beep/speaker"
+	"github.com/faiface/beep/wav"
+	"github.com/gdamore/tcell"
 )
 
 const (
@@ -35,6 +42,15 @@ var (
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 	boxStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
 	revStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorGreen)
+
+	//go:embed remove.wav
+	wavRemove []byte
+
+	//go:embed move.wav
+	wavMove []byte
+
+	audioBuffer *beep.Buffer
+	audioLimits [2]int
 )
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -86,22 +102,23 @@ func drawScreen(s tcell.Screen) {
 	}
 }
 
-func checkScreen(s tcell.Screen, x, y int, pressed bool) (cx, cy int, ok bool) {
+func checkScreen(s tcell.Screen, x, y int, op game.Updates) (cx, cy int, mov game.Updates) {
 	msg := "                                "
 
-	if cx, cy, ok = agame.Update(x-sx-1, y-sy-1, pressed, true); ok {
+	cx, cy, mov = agame.Update(x-sx-1, y-sy-1, op)
+	if mov != game.Invalid {
 		s.ShowCursor(agame.ScreenCoords(sx+1, sy+1, cx, cy))
-
 		msg = fmt.Sprintf("moves=%v remain=%v removed=%v   ", agame.Moves, agame.Count, agame.Removed)
 	}
 
 	drawScreen(s)
 	drawText(s, sx, sy+height+2, sx+len(msg)+1, sy+height+2, boxStyle, msg)
+
 	return
 }
 
 func centerScreen(s tcell.Screen) (int, int, bool) {
-	gw, gh := agame.Width*2+2, agame.Width+2
+	gw, gh := agame.Width*2+2, agame.Height+2
 	w, h := s.Size()
 
 	px, py := sx, sy
@@ -122,6 +139,40 @@ func centerScreen(s tcell.Screen) (int, int, bool) {
 	return -1, -1, false
 }
 
+func audioInit() {
+	audioRemove, format, err := wav.Decode(bytes.NewBuffer(wavRemove))
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	defer audioRemove.Close()
+
+	audioMove, _, err := wav.Decode(bytes.NewBuffer(wavMove))
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	defer audioMove.Close()
+
+	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
+
+	audioBuffer = beep.NewBuffer(format)
+	audioBuffer.Append(audioRemove)
+	audioLimits[0] = audioBuffer.Len() // 0 to audioLimits[0]
+	audioBuffer.Append(audioMove)
+	audioLimits[1] = audioBuffer.Len() // audioLimits[0] to audioLimits[1]
+}
+
+func audioPlay(first bool) {
+	var s beep.StreamSeeker
+
+	if first {
+		s = audioBuffer.Streamer(0, audioLimits[0])
+	} else {
+		s = audioBuffer.Streamer(audioLimits[0], audioLimits[1])
+	}
+
+	speaker.Play(s)
+}
+
 func main() {
 	flag.IntVar(&width, "width", width, "screen width")
 	flag.IntVar(&height, "height", height, "screen height")
@@ -133,6 +184,9 @@ func main() {
 
 	width += 2  // add border
 	height += 2 // to simplify boundary checks
+
+	// Initialize audio
+	audioInit()
 
 	// Initialize screen
 	s, err := tcell.NewScreen()
@@ -155,6 +209,8 @@ func main() {
 		s.Fini()
 		os.Exit(0)
 	}
+
+	ops := map[bool]game.Updates{true: game.Move, false: game.None}
 
 	cx, cy := agame.ScreenCoords(sx+1, sy+1, 1, 1)
 	s.ShowCursor(cx, cy)
@@ -185,23 +241,26 @@ func main() {
 			} else if ckey == tcell.KeyCtrlL {
 				s.Sync()
 			} else if ckey == tcell.KeyUp {
-				if _, _, ok := checkScreen(s, cx, cy-1, false); ok {
+				if _, _, mov := checkScreen(s, cx, cy-1, game.None); mov != game.Invalid {
 					cy--
 				}
 			} else if ckey == tcell.KeyDown {
-				if _, _, ok := checkScreen(s, cx, cy+1, false); ok {
+				if _, _, mov := checkScreen(s, cx, cy+1, game.None); mov != game.Invalid {
 					cy++
 				}
 			} else if ckey == tcell.KeyLeft {
-				if _, _, ok := checkScreen(s, cx-2, cy, false); ok {
+				if _, _, mov := checkScreen(s, cx-2, cy, game.None); mov != game.Invalid {
 					cx -= 2
 				}
 			} else if ckey == tcell.KeyRight {
-				if _, _, ok := checkScreen(s, cx+2, cy, false); ok {
+				if _, _, mov := checkScreen(s, cx+2, cy, game.None); mov != game.Invalid {
 					cx += 2
 				}
 			} else if crune == ' ' { // hit
-				checkScreen(s, cx, cy, true)
+				if _, _, mov := checkScreen(s, cx, cy, game.Move); mov > game.None {
+					audioPlay(mov == game.Remove)
+				}
+
 			} else if crune == 'U' || crune == 'u' { // undo
 				if x, y, ok := agame.Undo(); ok {
 					cx, cy = agame.ScreenCoords(sx+1, sy+1, x, y)
@@ -218,28 +277,30 @@ func main() {
 				for y := 1; y < agame.Height-1; y++ {
 					for x := 1; x < agame.Width-1; x++ {
 						x, y := agame.ScreenCoords(0, 0, x, y)
-						agame.Update(x, y, true, false)
+						agame.Update(x, y, game.Remove)
 					}
 				}
 
-				checkScreen(s, cx, cy, false)
+				checkScreen(s, cx, cy, game.None)
 			} else if crune == 'P' || crune == 'p' { // auto play
 				s.PostEvent(tcell.NewEventInterrupt(nil))
 			}
 		case *tcell.EventMouse:
 			cx, cy = ev.Position()
-			button := ev.Buttons() & tcell.ButtonMask(0xff)
-			checkScreen(s, cx, cy, button != tcell.ButtonNone)
+			pressed := ev.Buttons()&tcell.ButtonMask(0xff) != tcell.ButtonNone
+			if _, _, mov := checkScreen(s, cx, cy, ops[pressed]); mov > game.None {
+				audioPlay(mov == game.Remove)
+			}
 
 		case *tcell.EventInterrupt:
 			for y := 1; y < agame.Height-1; y++ {
 				for x := 1; x < agame.Width-1; x++ {
 					x, y := agame.ScreenCoords(0, 0, x, y)
-					agame.Update(x, y, true, false)
+					agame.Update(x, y, game.Remove)
 				}
 			}
 
-			checkScreen(s, cx, cy, false)
+			checkScreen(s, cx, cy, game.None)
 
 			if agame.Count > 0 {
 				agame.Shuffle()

@@ -8,6 +8,8 @@ import (
 // Arrow directions
 type Dir int8
 
+type Updates int8
+
 const (
 	Empty = Dir(0)
 	Up    = Dir(1)
@@ -16,9 +18,14 @@ const (
 	Right = Dir(4)
 
 	DirCount = 4
+
+	Invalid = Updates(0) // invalid coordinates
+	None    = Updates(1) // cannot move
+	Remove  = Updates(2) // remove arrow/removed
+	Move    = Updates(4) // move arrow/moved
 )
 
-type Move struct {
+type FromTo struct {
 	X1 int
 	Y1 int
 	D1 Dir
@@ -39,14 +46,14 @@ type Game struct {
 	cellwidth  int
 	cellheight int
 
-	stack []Move
+	stack []FromTo
 }
 
 func (g *Game) Push(x1, y1 int, d1 Dir, x2, y2 int, d2 Dir) {
-	g.stack = append(g.stack, Move{X1: x1, Y1: y1, D1: d1, X2: x2, Y2: y2, D2: d2})
+	g.stack = append(g.stack, FromTo{X1: x1, Y1: y1, D1: d1, X2: x2, Y2: y2, D2: d2})
 }
 
-func (g *Game) Pop() *Move {
+func (g *Game) Pop() *FromTo {
 	l := len(g.stack)
 
 	if l == 0 {
@@ -145,13 +152,17 @@ func (g *Game) ScreenCoords(sx, sy, x, y int) (int, int) {
 // remove: remove arrows at x,y
 // move: if not out of boundary move arrow to last empty position
 //
-func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
+func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
+	var ok bool
+
 	cx, cy, ok = g.Coords(x, y)
 	if !ok {
-		return
+		return -1, -1, Invalid
 	}
 
-	if remove {
+	res = None
+
+	if op > None {
 		var px, py int
 
 		switch g.Screen[cy][cx] {
@@ -163,12 +174,14 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 				if py == 0 {
 					g.Count--
 					g.Removed++
+					res = Remove
 				} else {
-					if !move {
+					if op != Move {
 						return
 					}
 
 					g.Screen[py][cx] = Up
+					res = Move
 				}
 
 				g.Push(cx, py, Empty, cx, cy, g.Screen[cy][cx])
@@ -185,17 +198,18 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 				if py == g.Height-1 {
 					g.Count--
 					g.Removed++
+					res = Remove
 				} else {
-					if !move {
+					if op != Move {
 						return
 					}
 					g.Screen[py][cx] = Down
+					res = Move
 				}
 
 				g.Push(cx, py, Empty, cx, cy, g.Screen[cy][cx])
 				g.Screen[cy][cx] = Empty
 				g.Moves++
-
 			}
 
 		case Left:
@@ -206,12 +220,14 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 				if px == 0 {
 					g.Count--
 					g.Removed++
+					res = Remove
 				} else {
-					if !move {
+					if op != Move {
 						return
 					}
 
 					g.Screen[cy][px] = Left
+					res = Move
 				}
 
 				g.Push(px, cy, Empty, cx, cy, g.Screen[cy][cx])
@@ -227,12 +243,14 @@ func (g *Game) Update(x, y int, remove, move bool) (cx, cy int, ok bool) {
 				if px == g.Width-1 {
 					g.Count--
 					g.Removed++
+					res = Remove
 				} else {
-					if !move {
+					if op != Move {
 						return
 					}
 
 					g.Screen[cy][px] = Right
+					res = Move
 				}
 
 				g.Push(px, cy, Empty, cx, cy, g.Screen[cy][cx])
