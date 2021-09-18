@@ -22,8 +22,11 @@ const (
 	Invalid = Updates(0) // invalid coordinates
 	None    = Updates(1) // cannot move
 	Remove  = Updates(2) // remove arrow/removed
-	Move    = Updates(4) // move arrow/moved
-	Shuffle = Updates(5) // this is actually only used for playing sound effects
+	Move    = Updates(3) // move arrow/moved
+
+	// these is actually only used for playing sound effects
+	Shuffle = Updates(4)
+	Undo    = Updates(5)
 )
 
 type FromTo struct {
