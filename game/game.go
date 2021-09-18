@@ -21,8 +21,8 @@ const (
 
 	Invalid = Updates(0) // invalid coordinates
 	None    = Updates(1) // cannot move
-	Remove  = Updates(2) // remove arrow/removed
-	Move    = Updates(3) // move arrow/moved
+	Move    = Updates(2) // move arrow/moved
+	Remove  = Updates(3) // remove arrow/removed
 
 	// these is actually only used for playing sound effects
 	Shuffle = Updates(4)

@@ -343,13 +343,19 @@ func main() {
 				agame.Shuffle()
 				drawScreen(s)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
+				moved := game.Invalid
+
 				for y := 1; y < agame.Height-1; y++ {
 					for x := 1; x < agame.Width-1; x++ {
 						x, y := agame.ScreenCoords(0, 0, x, y)
-						agame.Update(x, y, game.Remove)
+						_, _, mov := agame.Update(x, y, game.Remove)
+						if mov > moved {
+							moved = mov
+						}
 					}
 				}
 
+				audioPlay(moved)
 				checkScreen(s, cx, cy, game.None)
 			} else if crune == 'P' || crune == 'p' { // auto play
 				s.PostEvent(tcell.NewEventInterrupt(nil))
