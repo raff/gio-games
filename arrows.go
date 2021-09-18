@@ -211,6 +211,10 @@ func audioInit() {
 }
 
 func audioPlay(mov game.Updates) {
+	if audioBuffer == nil || mov == game.Invalid {
+		return
+	}
+
 	var s beep.StreamSeeker
 
 	switch mov {
@@ -228,9 +232,6 @@ func audioPlay(mov game.Updates) {
 
 	case game.Undo:
 		s = audioBuffer.Streamer(audioLimits[3], audioLimits[4])
-
-	case game.Invalid:
-		return
 	}
 
 	speaker.Play(s)
@@ -239,6 +240,7 @@ func audioPlay(mov game.Updates) {
 func main() {
 	flag.IntVar(&width, "width", width, "screen width")
 	flag.IntVar(&height, "height", height, "screen height")
+	audio := flag.Bool("audio", true, "play audio effects")
 	flag.Parse()
 
 	if width <= 0 || height <= 0 {
@@ -249,7 +251,9 @@ func main() {
 	height += 2 // to simplify boundary checks
 
 	// Initialize audio
-	audioInit()
+	if *audio {
+		audioInit()
+	}
 
 	// Initialize screen
 	s, err := tcell.NewScreen()
