@@ -282,6 +282,8 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 	if m := g.Pop(); m != nil {
 		g.Screen[m.Y1][m.X1] = m.D1
 		g.Screen[m.Y2][m.X2] = m.D2
+		g.Count++
+		g.Removed--
 		return m.X2, m.Y2, true
 	}
 
