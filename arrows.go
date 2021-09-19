@@ -336,8 +336,7 @@ func main() {
 				if x, y, ok := agame.Undo(); ok {
 					audioPlay(game.Undo)
 					cx, cy = agame.ScreenCoords(sx+1, sy+1, x, y)
-					s.ShowCursor(cx, cy)
-					drawScreen(s)
+					checkScreen(s, cx, cx, game.None)
 				}
 			} else if crune == 'R' || crune == 'r' { // reset
 				audioPlay(game.Undo)
