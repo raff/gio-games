@@ -327,6 +327,11 @@ func main() {
 				_, _, mov := checkScreen(s, cx, cy, game.Move)
 				audioPlay(mov)
 
+				if agame.Count == 0 {
+					if agame.Winner() {
+						s.PostEvent(tcell.NewEventInterrupt(true))
+					}
+				}
 			} else if crune == 'U' || crune == 'u' { // undo
 				if x, y, ok := agame.Undo(); ok {
 					audioPlay(game.Undo)
@@ -356,9 +361,16 @@ func main() {
 				}
 
 				audioPlay(moved)
+
+				if agame.Count == 0 {
+					if agame.Winner() {
+						s.PostEvent(tcell.NewEventInterrupt(true))
+					}
+				}
+
 				checkScreen(s, cx, cy, game.None)
 			} else if crune == 'P' || crune == 'p' { // auto play
-				s.PostEvent(tcell.NewEventInterrupt(nil))
+				s.PostEvent(tcell.NewEventInterrupt(false))
 			}
 		case *tcell.EventMouse:
 			cx, cy = ev.Position()
@@ -366,9 +378,18 @@ func main() {
 			_, _, mov := checkScreen(s, cx, cy, ops[pressed])
 			if pressed {
 				audioPlay(mov)
+
+				if agame.Count == 0 {
+					if agame.Winner() {
+						s.PostEvent(tcell.NewEventInterrupt(true))
+					}
+				}
 			}
 
 		case *tcell.EventInterrupt:
+			winner := ev.Data().(bool)
+			count := agame.Count
+
 			for y := 1; y < agame.Height-1; y++ {
 				for x := 1; x < agame.Width-1; x++ {
 					x, y := agame.ScreenCoords(0, 0, x, y)
@@ -376,11 +397,18 @@ func main() {
 				}
 			}
 
+			if count == agame.Count { // no changes
+				break
+			}
+
 			checkScreen(s, cx, cy, game.None)
 
 			if agame.Count > 0 {
-				audioPlay(game.Shuffle)
-				agame.Shuffle()
+				if !winner {
+					audioPlay(game.Shuffle)
+					agame.Shuffle()
+				}
+
 				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
 			}
 		}

@@ -25,8 +25,8 @@ const (
 	Remove  = Updates(3) // remove arrow/removed
 
 	// these is actually only used for playing sound effects
-	Shuffle = Updates(4)
-	Undo    = Updates(5)
+	Shuffle = Updates(-1)
+	Undo    = Updates(-2)
 )
 
 type FromTo struct {
@@ -115,7 +115,18 @@ func (g *Game) Shuffle() {
 	for y, row := range g.Screen {
 		for x, col := range row {
 			if col != Empty {
-				g.Screen[y][x] = Dir(rand.Intn(DirCount) + 1) // 0 is Empty
+				//g.Screen[y][x] = Dir(rand.Intn(DirCount) + 1) // 0 is Empty
+
+				switch g.Screen[y][x] {
+				case Up:
+					g.Screen[y][x] = Left
+				case Down:
+					g.Screen[y][x] = Right
+				case Left:
+					g.Screen[y][x] = Down
+				case Right:
+					g.Screen[y][x] = Up
+				}
 			}
 		}
 	}
@@ -275,4 +286,46 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 	}
 
 	return -1, -1, false
+}
+
+var WinBanner = [][]Dir{
+	{Down, Down, Up, Up, Down, Down, Up, Up, Down, Down, Down, Down, Up, Up, Down, Down, Up, Up, Down, Down},
+	{Up, Up, Up, Up, Up, Up, Up, Down, Up, Up, Up, Up, Down, Up, Up, Up, Up, Up, Up, Up},
+	{Up, Up, Up, Up, Up, Up, Up, Up, Up, Empty, Empty, Up, Up, Up, Up, Up, Up, Up, Up, Up},
+	{Down, Up, Down, Down, Up, Empty, Up, Up, Up, Empty, Empty, Up, Up, Up, Up, Up, Up, Up, Up, Up},
+	{Left, Left, Up, Up, Empty, Empty, Up, Up, Up, Empty, Empty, Up, Up, Up, Up, Up, Up, Up, Up, Up},
+	{Left, Left, Up, Up, Empty, Empty, Up, Up, Up, Down, Down, Up, Up, Up, Up, Up, Down, Down, Up, Up},
+	{Left, Left, Up, Up, Empty, Empty, Up, Empty, Up, Up, Up, Up, Empty, Empty, Empty, Up, Up, Up, Up, Right},
+	{Left, Left, Left, Left, Left, Left, Left, Left, Left, Left, Right, Right, Right, Right, Right, Right, Right, Right, Right, Right},
+	{Down, Down, Down, Empty, Empty, Empty, Down, Down, Down, Down, Down, Down, Down, Down, Empty, Empty, Empty, Down, Down, Right},
+	{Down, Up, Up, Empty, Empty, Empty, Up, Up, Down, Up, Up, Down, Up, Up, Empty, Empty, Empty, Up, Up, Right},
+	{Down, Up, Up, Empty, Empty, Empty, Up, Up, Down, Up, Up, Down, Up, Up, Down, Empty, Empty, Up, Up, Right},
+	{Down, Up, Up, Empty, Empty, Empty, Up, Up, Down, Up, Up, Down, Up, Up, Up, Down, Empty, Up, Up, Right},
+	{Down, Up, Up, Empty, Down, Empty, Up, Up, Down, Up, Up, Down, Up, Up, Down, Up, Down, Up, Up, Right},
+	{Down, Up, Up, Down, Up, Down, Up, Up, Down, Up, Up, Down, Up, Up, Down, Down, Up, Up, Up, Right},
+	{Down, Down, Up, Up, Down, Up, Up, Down, Down, Up, Up, Down, Up, Up, Down, Down, Down, Up, Up, Right},
+}
+
+func (g *Game) Winner() bool {
+	ww, hw := len(WinBanner[0]), len(WinBanner)
+
+	if ww >= g.Width && hw >= g.Height {
+		return false
+	}
+
+	ww = (g.Width - ww) / 2
+	hw = (g.Height - hw) / 2
+
+	g.Count = 0
+
+	for y, row := range WinBanner {
+		for x, col := range row {
+			g.Screen[hw+y][ww+x] = col
+			if col != Empty {
+				g.Count++
+			}
+		}
+	}
+
+	return true
 }
