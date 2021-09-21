@@ -112,9 +112,13 @@ func (g *Game) Setup(w, h, cw, ch int) {
 // (actually replace arrows where present)
 //
 func (g *Game) Shuffle() {
+	g.Count = 0
+
 	for y, row := range g.Screen {
 		for x, col := range row {
 			if col != Empty {
+				g.Count++
+
 				//g.Screen[y][x] = Dir(rand.Intn(DirCount) + 1) // 0 is Empty
 
 				switch g.Screen[y][x] {
