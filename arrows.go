@@ -109,12 +109,12 @@ func drawScreen(s tcell.Screen) {
 }
 
 func checkScreen(s tcell.Screen, x, y int, op game.Updates) (cx, cy int, mov game.Updates) {
-	msg := "                                  "
+	msg := "                                         "
 
 	cx, cy, mov = agame.Update(x-sx-1, y-sy-1, op)
 	if mov != game.Invalid {
 		s.ShowCursor(agame.ScreenCoords(sx+1, sy+1, cx, cy))
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v     ", agame.Moves, agame.Count, agame.Removed)
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v       ", agame.Moves, agame.Count, agame.Removed, agame.Seq)
 	}
 
 	drawScreen(s)
@@ -365,6 +365,8 @@ func main() {
 					if agame.Winner() {
 						s.PostEvent(tcell.NewEventInterrupt(true))
 					}
+				} else if moved != game.None {
+					agame.Seq = 0
 				}
 
 				checkScreen(s, cx, cy, game.None)

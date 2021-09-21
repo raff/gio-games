@@ -46,6 +46,7 @@ type Game struct {
 	Count   int
 	Removed int
 	Moves   int
+	Seq     int
 
 	cellwidth  int
 	cellheight int
@@ -80,6 +81,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 	g.Count = 0
 	g.Removed = 0
 	g.Moves = 0
+	g.Seq = 0
 
 	g.cellwidth = cw
 	g.cellheight = ch
@@ -113,6 +115,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 //
 func (g *Game) Shuffle() {
 	g.Count = 0
+	g.Seq = 0
 
 	for y, row := range g.Screen {
 		for x, col := range row {
@@ -193,6 +196,7 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				if py == 0 {
 					g.Count--
 					g.Removed++
+					g.Seq++
 					res = Remove
 				} else {
 					if op != Move {
@@ -217,6 +221,7 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				if py == g.Height-1 {
 					g.Count--
 					g.Removed++
+					g.Seq++
 					res = Remove
 				} else {
 					if op != Move {
@@ -239,6 +244,7 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				if px == 0 {
 					g.Count--
 					g.Removed++
+					g.Seq++
 					res = Remove
 				} else {
 					if op != Move {
@@ -262,6 +268,7 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				if px == g.Width-1 {
 					g.Count--
 					g.Removed++
+					g.Seq++
 					res = Remove
 				} else {
 					if op != Move {
@@ -288,6 +295,7 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 		g.Screen[m.Y2][m.X2] = m.D2
 		g.Count++
 		g.Removed--
+		g.Seq--
 		return m.X2, m.Y2, true
 	}
 
