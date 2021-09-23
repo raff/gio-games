@@ -42,7 +42,8 @@ var (
 	width  = 20
 	height = 20
 
-	game Game
+	game   Game
+	gw, gh int
 
 	wopts []app.Option
 )
@@ -84,10 +85,14 @@ func main() {
 
 	game.Setup(width, height, cell.X, cell.Y)
 
+	gw = width * cell.X
+	gh = height * cell.Y
+
 	wopts = []app.Option{
 		app.Title("Arrows"), // title is first option
 		app.Size(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
 		app.MinSize(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
+		app.MaxSize(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
 	}
 
 	go func() {
@@ -190,27 +195,27 @@ func loop(w *app.Window) {
 }
 
 func render(gtx layout.Context, sz image.Point) {
-	px := gtx.Metric.Px(unit.Dp(float32(sz.X)))
-	py := gtx.Metric.Px(unit.Dp(float32(sz.Y)))
-
-	if canvas == nil || canvas.Bounds().Size().X != px || canvas.Bounds().Size().Y != py {
-		canvas = imaging.New(px, py, bgColor)
-	} else {
-		draw.Draw(canvas, canvas.Bounds(), &image.Uniform{bgColor}, image.ZP, draw.Src)
-	}
-
-	for y, row := range game.Screen {
-		for x, col := range row {
-			im := dirs[col]
-
-			draw.Draw(canvas,
-				im.Bounds().Add(image.Point{x * cell.X, y * cell.Y}),
-				im, image.Point{}, draw.Over)
+	layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+		if canvas == nil {
+			canvas = imaging.New(gw, gh, bgColor)
+		} else {
+			draw.Draw(canvas, canvas.Bounds(), &image.Uniform{bgColor}, image.ZP, draw.Src)
 		}
-	}
 
-	canvasOp := paint.NewImageOp(canvas)
-	img := widget.Image{Src: canvasOp}
-	img.Scale = float32(sz.X) / float32(gtx.Px(unit.Dp(float32(sz.X))))
-	img.Layout(gtx)
+		for y, row := range game.Screen {
+			for x, col := range row {
+				im := dirs[col]
+
+				draw.Draw(canvas,
+					im.Bounds().Add(image.Point{x * cell.X, y * cell.Y}),
+					im, image.Point{}, draw.Over)
+			}
+		}
+
+		canvasOp := paint.NewImageOp(canvas)
+		img := widget.Image{Src: canvasOp}
+		img.Scale = float32(sz.X) / float32(gtx.Px(unit.Dp(float32(sz.X))))
+
+		return img.Layout(gtx)
+	})
 }
