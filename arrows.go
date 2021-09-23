@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"log"
@@ -10,12 +9,7 @@ import (
 
 	_ "embed"
 
-	"github.com/raff/arrows/game"
-
-	"github.com/faiface/beep"
-	"github.com/faiface/beep/speaker"
-	"github.com/faiface/beep/wav"
-	"github.com/gdamore/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 const (
@@ -36,27 +30,11 @@ var (
 	sx = 2
 	sy = 2
 
-	dirs  = []rune{empty, up, down, left, right}
-	agame game.Game
+	dirs = []rune{empty, up, down, left, right}
+	game Game
 
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
-	boxStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorBlack)
-	revStyle = tcell.StyleDefault.Foreground(tcell.ColorWhite).Background(tcell.ColorGreen)
-
-	//go:embed audio/remove.wav
-	wavRemove []byte
-
-	//go:embed audio/move.wav
-	wavMove []byte
-
-	//go:embed audio/stop.wav
-	wavStop []byte
-
-	//go:embed audio/shuffle.wav
-	wavShuffle []byte
-
-	audioBuffer *beep.Buffer
-	audioLimits [5]int
+	boxStyle = tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
 )
 
 func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string) {
@@ -78,12 +56,12 @@ func drawText(s tcell.Screen, x1, y1, x2, y2 int, style tcell.Style, text string
 func drawScreen(s tcell.Screen) {
 	x1 := sx
 	y1 := sy
-	x2 := x1 + (agame.Width * 2) + 1
-	y2 := y1 + agame.Height + 1
+	x2 := x1 + (game.Width * 2) + 1
+	y2 := y1 + game.Height + 1
 	style := boxStyle
 
 	// Fill screen
-	for y, row := range agame.Screen {
+	for y, row := range game.Screen {
 		for x, col := range row {
 			s.SetContent(x1+(2*x)+1, y1+y+1, dirs[col], nil, style)
 		}
@@ -108,13 +86,13 @@ func drawScreen(s tcell.Screen) {
 	}
 }
 
-func checkScreen(s tcell.Screen, x, y int, op game.Updates) (cx, cy int, mov game.Updates) {
+func checkScreen(s tcell.Screen, x, y int, op Updates) (cx, cy int, mov Updates) {
 	msg := "                                         "
 
-	cx, cy, mov = agame.Update(x-sx-1, y-sy-1, op)
-	if mov != game.Invalid {
-		s.ShowCursor(agame.ScreenCoords(sx+1, sy+1, cx, cy))
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v       ", agame.Moves, agame.Count, agame.Removed, agame.Seq)
+	cx, cy, mov = game.Update(x-sx-1, y-sy-1, op)
+	if mov != Invalid {
+		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v       ", game.Moves, game.Count, game.Removed, game.Seq)
 	}
 
 	drawScreen(s)
@@ -124,7 +102,7 @@ func checkScreen(s tcell.Screen, x, y int, op game.Updates) (cx, cy int, mov gam
 }
 
 func centerScreen(s tcell.Screen) (int, int, bool) {
-	gw, gh := agame.Width*2+2, agame.Height+2
+	gw, gh := game.Width*2+2, game.Height+2
 	w, h := s.Size()
 
 	px, py := sx, sy
@@ -139,102 +117,10 @@ func centerScreen(s tcell.Screen) (int, int, bool) {
 
 	if sx != px || sy != py {
 		s.Clear()
-		return agame.Coords(px, py)
+		return game.Coords(px, py)
 	}
 
 	return -1, -1, false
-}
-
-func reverse(s beep.Streamer, n int) beep.Streamer {
-	rev := make([][2]float64, n)
-	if nn, ok := s.Stream(rev); nn != n || !ok {
-		log.Fatalf("cannot stream for reverse: %v/%v %v", nn, n, ok)
-	}
-
-	pos := n - 1
-
-	return beep.StreamerFunc(func(samples [][2]float64) (n int, ok bool) {
-		for i := 0; i < len(samples) && pos >= 0; i++ {
-			samples[i] = rev[pos]
-			pos--
-			n++
-		}
-
-		return n, pos >= 0
-	})
-}
-
-func audioInit() {
-	audioRemove, format, err := wav.Decode(bytes.NewBuffer(wavRemove))
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
-	defer audioRemove.Close()
-
-	audioMove, _, err := wav.Decode(bytes.NewBuffer(wavMove))
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
-	defer audioMove.Close()
-
-	audioStop, _, err := wav.Decode(bytes.NewBuffer(wavStop))
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
-	defer audioStop.Close()
-
-	audioShuffle, _, err := wav.Decode(bytes.NewBuffer(wavShuffle))
-	if err != nil {
-		log.Fatalf("%+v", err)
-	}
-	defer audioShuffle.Close()
-
-	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
-
-	audioBuffer = beep.NewBuffer(format)
-
-	audioBuffer.Append(audioRemove)
-	audioLimits[0] = audioBuffer.Len() // 0 to audioLimits[0]
-
-	audioBuffer.Append(audioMove)
-	audioLimits[1] = audioBuffer.Len() // audioLimits[0] to audioLimits[1]
-
-	audioBuffer.Append(audioStop)
-	audioLimits[2] = audioBuffer.Len() // audioLimits[1] to audioLimits[2]
-
-	audioBuffer.Append(audioShuffle)
-	audioLimits[3] = audioBuffer.Len() // audioLimits[2] to audioLimits[3]
-
-	s := audioBuffer.Streamer(0, audioLimits[0])
-	audioBuffer.Append(reverse(s, audioLimits[0]))
-	audioLimits[4] = audioBuffer.Len() // audioLimits[3] to audioLimits[4]
-}
-
-func audioPlay(mov game.Updates) {
-	if audioBuffer == nil || mov == game.Invalid {
-		return
-	}
-
-	var s beep.StreamSeeker
-
-	switch mov {
-	case game.Remove:
-		s = audioBuffer.Streamer(0, audioLimits[0])
-
-	case game.Move:
-		s = audioBuffer.Streamer(audioLimits[0], audioLimits[1])
-
-	case game.None:
-		s = audioBuffer.Streamer(audioLimits[1], audioLimits[2])
-
-	case game.Shuffle:
-		s = audioBuffer.Streamer(audioLimits[2], audioLimits[3])
-
-	case game.Undo:
-		s = audioBuffer.Streamer(audioLimits[3], audioLimits[4])
-	}
-
-	speaker.Play(s)
 }
 
 func main() {
@@ -268,7 +154,7 @@ func main() {
 	s.Clear()
 
 	// Draw initial screen
-	agame.Setup(width, height, cw, ch)
+	game.Setup(width, height, cw, ch)
 	drawScreen(s)
 
 	// Event loop
@@ -277,9 +163,9 @@ func main() {
 		os.Exit(0)
 	}
 
-	ops := map[bool]game.Updates{true: game.Move, false: game.None}
+	ops := map[bool]Updates{true: Move, false: None}
 
-	cx, cy := agame.ScreenCoords(sx+1, sy+1, 1, 1)
+	cx, cy := game.ScreenCoords(sx+1, sy+1, 1, 1)
 	s.ShowCursor(cx, cy)
 
 	for {
@@ -295,7 +181,7 @@ func main() {
 			s.Sync()
 
 			if x, y, ok := centerScreen(s); ok {
-				cx, cy = agame.ScreenCoords(sx+1, sy+1, x, y)
+				cx, cy = game.ScreenCoords(sx+1, sy+1, x, y)
 				s.ShowCursor(cx, cy)
 				drawScreen(s)
 			}
@@ -308,51 +194,51 @@ func main() {
 			} else if ckey == tcell.KeyCtrlL {
 				s.Sync()
 			} else if ckey == tcell.KeyUp {
-				if _, _, mov := checkScreen(s, cx, cy-1, game.None); mov != game.Invalid {
+				if _, _, mov := checkScreen(s, cx, cy-1, None); mov != Invalid {
 					cy--
 				}
 			} else if ckey == tcell.KeyDown {
-				if _, _, mov := checkScreen(s, cx, cy+1, game.None); mov != game.Invalid {
+				if _, _, mov := checkScreen(s, cx, cy+1, None); mov != Invalid {
 					cy++
 				}
 			} else if ckey == tcell.KeyLeft {
-				if _, _, mov := checkScreen(s, cx-2, cy, game.None); mov != game.Invalid {
+				if _, _, mov := checkScreen(s, cx-2, cy, None); mov != Invalid {
 					cx -= 2
 				}
 			} else if ckey == tcell.KeyRight {
-				if _, _, mov := checkScreen(s, cx+2, cy, game.None); mov != game.Invalid {
+				if _, _, mov := checkScreen(s, cx+2, cy, None); mov != Invalid {
 					cx += 2
 				}
 			} else if crune == ' ' { // hit
-				_, _, mov := checkScreen(s, cx, cy, game.Move)
+				_, _, mov := checkScreen(s, cx, cy, Move)
 				audioPlay(mov)
 
-				if agame.Count == 0 {
-					if agame.Winner() {
+				if game.Count == 0 {
+					if game.Winner() {
 						s.PostEvent(tcell.NewEventInterrupt(true))
 					}
 				}
 			} else if crune == 'U' || crune == 'u' { // undo
-				if x, y, ok := agame.Undo(); ok {
-					audioPlay(game.Undo)
-					cx, cy = agame.ScreenCoords(sx+1, sy+1, x, y)
-					checkScreen(s, cx, cx, game.None)
+				if x, y, ok := game.Undo(); ok {
+					audioPlay(Undo)
+					cx, cy = game.ScreenCoords(sx+1, sy+1, x, y)
+					checkScreen(s, cx, cx, None)
 				}
 			} else if crune == 'R' || crune == 'r' { // reset
-				audioPlay(game.Undo)
-				agame.Setup(width, height, cw, ch)
+				audioPlay(Undo)
+				game.Setup(width, height, cw, ch)
 				drawScreen(s)
 			} else if crune == 'S' || crune == 's' { // reshuffle
-				audioPlay(game.Shuffle)
-				agame.Shuffle()
+				audioPlay(Shuffle)
+				game.Shuffle()
 				drawScreen(s)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
-				moved := game.Invalid
+				moved := Invalid
 
-				for y := 1; y < agame.Height-1; y++ {
-					for x := 1; x < agame.Width-1; x++ {
-						x, y := agame.ScreenCoords(0, 0, x, y)
-						_, _, mov := agame.Update(x, y, game.Remove)
+				for y := 1; y < game.Height-1; y++ {
+					for x := 1; x < game.Width-1; x++ {
+						x, y := game.ScreenCoords(0, 0, x, y)
+						_, _, mov := game.Update(x, y, Remove)
 						if mov > moved {
 							moved = mov
 						}
@@ -361,15 +247,15 @@ func main() {
 
 				audioPlay(moved)
 
-				if agame.Count == 0 {
-					if agame.Winner() {
+				if game.Count == 0 {
+					if game.Winner() {
 						s.PostEvent(tcell.NewEventInterrupt(true))
 					}
-				} else if moved != game.None {
-					agame.Seq = 0
+				} else if moved != None {
+					game.Seq = 0
 				}
 
-				checkScreen(s, cx, cy, game.None)
+				checkScreen(s, cx, cy, None)
 			} else if crune == 'P' || crune == 'p' { // auto play
 				s.PostEvent(tcell.NewEventInterrupt(false))
 			}
@@ -380,8 +266,8 @@ func main() {
 			if pressed {
 				audioPlay(mov)
 
-				if agame.Count == 0 {
-					if agame.Winner() {
+				if game.Count == 0 {
+					if game.Winner() {
 						s.PostEvent(tcell.NewEventInterrupt(true))
 					}
 				}
@@ -389,25 +275,25 @@ func main() {
 
 		case *tcell.EventInterrupt:
 			winner := ev.Data().(bool)
-			count := agame.Count
+			count := game.Count
 
-			for y := 1; y < agame.Height-1; y++ {
-				for x := 1; x < agame.Width-1; x++ {
-					x, y := agame.ScreenCoords(0, 0, x, y)
-					agame.Update(x, y, game.Remove)
+			for y := 1; y < game.Height-1; y++ {
+				for x := 1; x < game.Width-1; x++ {
+					x, y := game.ScreenCoords(0, 0, x, y)
+					game.Update(x, y, Remove)
 				}
 			}
 
-			if count == agame.Count { // no changes
+			if count == game.Count { // no changes
 				break
 			}
 
-			checkScreen(s, cx, cy, game.None)
+			checkScreen(s, cx, cy, None)
 
-			if agame.Count > 0 {
+			if game.Count > 0 {
 				if !winner {
-					audioPlay(game.Shuffle)
-					agame.Shuffle()
+					audioPlay(Shuffle)
+					game.Shuffle()
 				}
 
 				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
