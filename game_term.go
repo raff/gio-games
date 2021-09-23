@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -24,14 +23,10 @@ const (
 )
 
 var (
-	width  = 20
-	height = 20
-
 	sx = 2
 	sy = 2
 
 	dirs = []rune{empty, up, down, left, right}
-	game Game
 
 	defStyle = tcell.StyleDefault.Background(tcell.ColorReset).Foreground(tcell.ColorReset)
 	boxStyle = tcell.StyleDefault.Foreground(tcell.ColorYellow).Background(tcell.ColorBlack)
@@ -96,7 +91,7 @@ func checkScreen(s tcell.Screen, x, y int, op Updates) (cx, cy int, mov Updates)
 	}
 
 	drawScreen(s)
-	drawText(s, sx, sy+height+2, sx+len(msg)+1, sy+height+2, boxStyle, msg)
+	drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
 
 	return
 }
@@ -123,24 +118,7 @@ func centerScreen(s tcell.Screen) (int, int, bool) {
 	return -1, -1, false
 }
 
-func main() {
-	flag.IntVar(&width, "width", width, "screen width")
-	flag.IntVar(&height, "height", height, "screen height")
-	audio := flag.Bool("audio", true, "play audio effects")
-	flag.Parse()
-
-	if width <= 0 || height <= 0 {
-		log.Fatal("invalid width or height")
-	}
-
-	width += 2  // add border
-	height += 2 // to simplify boundary checks
-
-	// Initialize audio
-	if *audio {
-		audioInit()
-	}
-
+func termGame() {
 	// Initialize screen
 	s, err := tcell.NewScreen()
 	if err != nil {
@@ -154,7 +132,7 @@ func main() {
 	s.Clear()
 
 	// Draw initial screen
-	game.Setup(width, height, cw, ch)
+	game.Setup(gameWidth, gameHeight, cw, ch)
 	drawScreen(s)
 
 	// Event loop
@@ -226,7 +204,7 @@ func main() {
 				}
 			} else if crune == 'R' || crune == 'r' { // reset
 				audioPlay(Undo)
-				game.Setup(width, height, cw, ch)
+				game.Setup(gameWidth, gameHeight, cw, ch)
 				drawScreen(s)
 			} else if crune == 'S' || crune == 's' { // reshuffle
 				audioPlay(Shuffle)

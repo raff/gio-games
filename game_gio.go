@@ -1,10 +1,7 @@
-//go:build ignore
-
 package main
 
 import (
 	"bytes"
-	"flag"
 	"fmt"
 	"image"
 	"image/color"
@@ -34,15 +31,10 @@ var (
 
 	bgColor = color.NRGBA{0, 0, 32, 255}
 
-	dirs [5]image.Image
-	cell image.Point
+	gDirs [5]image.Image
+	cell  image.Point
 
 	canvas draw.Image
-
-	width  = 20
-	height = 20
-
-	game   Game
 	gw, gh int
 
 	wopts []app.Option
@@ -53,46 +45,29 @@ func setTitle(w *app.Window, msg string, args ...interface{}) {
 	w.Option(wopts...)
 }
 
-func main() {
-	flag.IntVar(&width, "width", width, "screen width")
-	flag.IntVar(&height, "height", height, "screen height")
-	audio := flag.Bool("audio", true, "play audio effects")
-	flag.Parse()
-
-	if width <= 0 || height <= 0 {
-		log.Fatal("invalid width or height")
-	}
-
-	width += 2  // add border
-	height += 2 // to simplify boundary checks
-
-	// Initialize audio
-	if *audio {
-		audioInit()
-	}
-
+func gioGame() {
 	if img, err := png.Decode(bytes.NewBuffer(pngUp)); err != nil {
 		log.Fatal(err)
 	} else {
 		cell = img.Bounds().Size()
 
-		dirs[Empty] = imaging.New(cell.X, cell.Y, bgColor)
-		dirs[Up] = img
-		dirs[Left] = imaging.Rotate90(dirs[Up])
-		dirs[Down] = imaging.Rotate90(dirs[Left])
-		dirs[Right] = imaging.Rotate90(dirs[Down])
+		gDirs[Empty] = imaging.New(cell.X, cell.Y, bgColor)
+		gDirs[Up] = img
+		gDirs[Left] = imaging.Rotate90(gDirs[Up])
+		gDirs[Down] = imaging.Rotate90(gDirs[Left])
+		gDirs[Right] = imaging.Rotate90(gDirs[Down])
 	}
 
-	game.Setup(width, height, cell.X, cell.Y)
+	game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
 
-	gw = width * cell.X
-	gh = height * cell.Y
+	gw = gameWidth * cell.X
+	gh = gameHeight * cell.Y
 
 	wopts = []app.Option{
 		app.Title("Arrows"), // title is first option
-		app.Size(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
-		app.MinSize(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
-		app.MaxSize(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
+		app.Size(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
+		app.MinSize(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
+		app.MaxSize(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
 	}
 
 	go func() {
@@ -113,7 +88,7 @@ func loop(w *app.Window) {
 			gtx := layout.NewContext(&ops, e)
 
 			// Handle any input from a pointer.
-			for _, ev := range gtx.Events(dirs) {
+			for _, ev := range gtx.Events(gDirs) {
 				if ev, ok := ev.(pointer.Event); ok {
 					_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
 					audioPlay(mov)
@@ -126,7 +101,7 @@ func loop(w *app.Window) {
 			}
 			// Register to listen for pointer Drag events.
 			pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
-			pointer.InputOp{Tag: dirs, Types: pointer.Press}.Add(gtx.Ops)
+			pointer.InputOp{Tag: gDirs, Types: pointer.Press}.Add(gtx.Ops)
 
 			render(gtx, e.Size)
 			e.Frame(gtx.Ops)
@@ -150,7 +125,7 @@ func loop(w *app.Window) {
 					}
 				case "R": // reset
 					audioPlay(Undo)
-					game.Setup(width, height, cell.X, cell.Y)
+					game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
 					setTitle(w, "Arrows")
 					w.Invalidate()
 
@@ -204,7 +179,7 @@ func render(gtx layout.Context, sz image.Point) {
 
 		for y, row := range game.Screen {
 			for x, col := range row {
-				im := dirs[col]
+				im := gDirs[col]
 
 				draw.Draw(canvas,
 					im.Bounds().Add(image.Point{x * cell.X, y * cell.Y}),
