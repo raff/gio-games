@@ -136,6 +136,13 @@ func loop(w *app.Window) {
 				case key.NameEscape, "Q", "X":
 					w.Close()
 
+				case "U": // undo
+					if _, _, ok := game.Undo(); ok {
+						audioPlay(Undo)
+						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+							game.Moves, game.Count, game.Removed, game.Seq)
+						w.Invalidate()
+					}
 				case "R": // reset
 					audioPlay(Undo)
 					game.Setup(width, height, cell.X, cell.Y)
