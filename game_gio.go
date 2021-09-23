@@ -84,6 +84,12 @@ func loop(w *app.Window) {
 
 	for e := range w.Events() {
 		switch e := e.(type) {
+		case system.DestroyEvent:
+			if e.Err != nil {
+				fmt.Println(e.Err)
+			}
+			return
+
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
 
@@ -97,6 +103,15 @@ func loop(w *app.Window) {
 						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
 							game.Moves, game.Count, game.Removed, game.Seq)
 					}
+
+					if game.Count == 0 {
+						if !game.Winner() {
+							setTitle(w, "You Win!")
+						} else {
+							w.Invalidate()
+						}
+					}
+
 				}
 			}
 			// Register to listen for pointer Drag events.
@@ -105,11 +120,7 @@ func loop(w *app.Window) {
 
 			render(gtx, e.Size)
 			e.Frame(gtx.Ops)
-		case system.DestroyEvent:
-			if e.Err != nil {
-				fmt.Println(e.Err)
-			}
-			return
+
 		case key.Event:
 			if e.State == key.Press {
 				switch e.Name {
