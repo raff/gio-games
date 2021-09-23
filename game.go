@@ -323,7 +323,7 @@ var WinBanner = [][]Dir{
 func (g *Game) Winner() bool {
 	ww, hw := len(WinBanner[0]), len(WinBanner)
 
-	if ww >= g.Width && hw >= g.Height {
+	if ww >= g.Width || hw >= g.Height {
 		return false
 	}
 
