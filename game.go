@@ -295,7 +295,9 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 		g.Screen[m.Y2][m.X2] = m.D2
 		g.Count++
 		g.Removed--
-		g.Seq--
+		if g.Seq > 0 {
+			g.Seq--
+		}
 		return m.X2, m.Y2, true
 	}
 
@@ -343,3 +345,5 @@ func (g *Game) Winner() bool {
 
 	return true
 }
+
+var game Game

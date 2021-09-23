@@ -8,8 +8,6 @@ import (
 var (
 	gameWidth  = 20
 	gameHeight = 20
-
-	game Game
 )
 
 func main() {

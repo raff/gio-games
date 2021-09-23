@@ -5,7 +5,12 @@ Click on the arrows to remove them from the screen (if they have a free path in 
 
 ## Usage:
 
-    arrows [-width=#] [-height=n] [-audio=true/false]
+    arrows [-width=#] [-height=n] [-audio=true/false] [-term=true/false]
+
+ - width: number of columns
+ - height: number of rows
+ - audio: enable/disable audio
+ - term: "terminal" UI vs. graphics UI
 
 ## Mouse commands:
  - move mouse: move cursor
