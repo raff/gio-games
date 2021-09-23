@@ -1,4 +1,5 @@
 //go:build ignore
+
 package main
 
 import (
@@ -16,6 +17,7 @@ import (
 
 	"gioui.org/app"
 	"gioui.org/io/key"
+	"gioui.org/io/pointer"
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
@@ -41,7 +43,14 @@ var (
 	height = 20
 
 	game Game
+
+	wopts []app.Option
 )
+
+func setTitle(w *app.Window, msg string, args ...interface{}) {
+	wopts[0] = app.Title(fmt.Sprintf(msg, args...))
+	w.Option(wopts...)
+}
 
 func main() {
 	flag.IntVar(&width, "width", width, "screen width")
@@ -75,8 +84,14 @@ func main() {
 
 	game.Setup(width, height, cell.X, cell.Y)
 
+	wopts = []app.Option{
+		app.Title("Arrows"), // title is first option
+		app.Size(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
+		app.MinSize(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))),
+	}
+
 	go func() {
-		w := app.NewWindow(app.Size(unit.Px(float32(width*cell.X)), unit.Px(float32(height*cell.Y))))
+		w := app.NewWindow(wopts...)
 		loop(w)
 		os.Exit(0)
 	}()
@@ -91,6 +106,23 @@ func loop(w *app.Window) {
 		switch e := e.(type) {
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
+
+			// Handle any input from a pointer.
+			for _, ev := range gtx.Events(dirs) {
+				if ev, ok := ev.(pointer.Event); ok {
+					_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
+					audioPlay(mov)
+
+					if mov != Invalid {
+						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+							game.Moves, game.Count, game.Removed, game.Seq)
+					}
+				}
+			}
+			// Register to listen for pointer Drag events.
+			pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
+			pointer.InputOp{Tag: dirs, Types: pointer.Press}.Add(gtx.Ops)
+
 			render(gtx, e.Size)
 			e.Frame(gtx.Ops)
 		case system.DestroyEvent:
@@ -104,17 +136,17 @@ func loop(w *app.Window) {
 				case key.NameEscape, "Q", "X":
 					w.Close()
 
-				case key.NameSpace:
-					w.Invalidate()
-
 				case "R": // reset
 					audioPlay(Undo)
 					game.Setup(width, height, cell.X, cell.Y)
+					setTitle(w, "Arrows")
 					w.Invalidate()
 
 				case "S": // reshuffle
 					audioPlay(Shuffle)
 					game.Shuffle()
+					setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+						game.Moves, game.Count, game.Removed, game.Seq)
 					w.Invalidate()
 
 				case "H": // help: remove all "free" arrows
@@ -132,9 +164,12 @@ func loop(w *app.Window) {
 
 					audioPlay(moved)
 
+					setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+						game.Moves, game.Count, game.Removed, game.Seq)
+
 					if game.Count == 0 {
-						if game.Winner() {
-							// s.PostEvent(tcell.NewEventInterrupt(true))
+						if !game.Winner() {
+							setTitle(w, "You Win!")
 						}
 					} else if moved != None {
 						game.Seq = 0
