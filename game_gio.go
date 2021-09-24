@@ -114,6 +114,7 @@ func loop(w *app.Window) {
 
 				}
 			}
+
 			// Register to listen for pointer Drag events.
 			pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
 			pointer.InputOp{Tag: gDirs, Types: pointer.Press}.Add(gtx.Ops)
@@ -142,7 +143,7 @@ func loop(w *app.Window) {
 
 				case "S": // reshuffle
 					audioPlay(Shuffle)
-					game.Shuffle()
+					game.Shuffle(shuffleDir)
 					setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
 						game.Moves, game.Count, game.Removed, game.Seq)
 					w.Invalidate()

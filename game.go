@@ -113,7 +113,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 // shuffle arrows
 // (actually replace arrows where present)
 //
-func (g *Game) Shuffle() {
+func (g *Game) Shuffle(dir Dir) {
 	g.Count = 0
 	g.Seq = 0
 
@@ -122,17 +122,36 @@ func (g *Game) Shuffle() {
 			if col != Empty {
 				g.Count++
 
-				//g.Screen[y][x] = Dir(rand.Intn(DirCount) + 1) // 0 is Empty
+				switch dir {
+				case Up, Left:
+					// rotate left
+					switch g.Screen[y][x] {
+					case Up:
+						g.Screen[y][x] = Left
+					case Down:
+						g.Screen[y][x] = Right
+					case Left:
+						g.Screen[y][x] = Down
+					case Right:
+						g.Screen[y][x] = Up
+					}
 
-				switch g.Screen[y][x] {
-				case Up:
-					g.Screen[y][x] = Left
-				case Down:
-					g.Screen[y][x] = Right
-				case Left:
-					g.Screen[y][x] = Down
-				case Right:
-					g.Screen[y][x] = Up
+				case Down, Right:
+					// rotate right
+					switch g.Screen[y][x] {
+					case Up:
+						g.Screen[y][x] = Right
+					case Down:
+						g.Screen[y][x] = Left
+					case Left:
+						g.Screen[y][x] = Up
+					case Right:
+						g.Screen[y][x] = Down
+					}
+
+				default:
+					// random shuffle
+					g.Screen[y][x] = Dir(rand.Intn(DirCount) + 1) // 0 is Empty
 				}
 			}
 		}

@@ -208,7 +208,7 @@ func termGame() {
 				drawScreen(s)
 			} else if crune == 'S' || crune == 's' { // reshuffle
 				audioPlay(Shuffle)
-				game.Shuffle()
+				game.Shuffle(shuffleDir)
 				drawScreen(s)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
 				moved := Invalid
@@ -271,7 +271,7 @@ func termGame() {
 			if game.Count > 0 {
 				if !winner {
 					audioPlay(Shuffle)
-					game.Shuffle()
+					game.Shuffle(shuffleDir)
 				}
 
 				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
