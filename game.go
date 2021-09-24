@@ -11,11 +11,12 @@ type Dir int8
 type Updates int8
 
 const (
-	Empty = Dir(0)
-	Up    = Dir(1)
-	Down  = Dir(2)
-	Left  = Dir(3)
-	Right = Dir(4)
+	InvalidDir = Dir(-1)
+	Empty      = Dir(0)
+	Up         = Dir(1)
+	Down       = Dir(2)
+	Left       = Dir(3)
+	Right      = Dir(4)
 
 	DirCount = 4
 
@@ -184,6 +185,14 @@ func (g *Game) Coords(x, y int) (int, int, bool) {
 //
 func (g *Game) ScreenCoords(sx, sy, x, y int) (int, int) {
 	return sx + (x * g.cellwidth), sy + (y * g.cellheight)
+}
+
+func (g *Game) Peek(x, y int) (int, int, Dir) {
+	if cx, cy, ok := g.Coords(x, y); ok {
+		return cx, cy, g.Screen[cy][cx]
+	}
+
+	return -1, -1, InvalidDir
 }
 
 //
