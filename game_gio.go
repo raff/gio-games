@@ -29,9 +29,13 @@ var (
 	//go:embed assets/up-arrow.png
 	pngUp []byte
 
+	//go:embed assets/dot.png
+	pngDot []byte
+
 	bgColor = color.NRGBA{0, 0, 32, 255}
 
 	gDirs [5]image.Image
+	gDot  image.Image
 	cell  image.Point
 
 	canvas draw.Image
@@ -58,6 +62,12 @@ func gioGame() {
 		gDirs[Right] = imaging.Rotate90(gDirs[Down])
 	}
 
+	if img, err := png.Decode(bytes.NewBuffer(pngDot)); err != nil {
+		log.Fatal(err)
+	} else {
+		gDot = img
+	}
+
 	game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
 
 	gw = gameWidth * cell.X
@@ -82,6 +92,8 @@ func loop(w *app.Window) {
 	// th := material.NewTheme(gofont.Collection())
 	var ops op.Ops
 
+	cx, cy := 1, 1
+
 	for e := range w.Events() {
 		switch e := e.(type) {
 		case system.DestroyEvent:
@@ -92,11 +104,82 @@ func loop(w *app.Window) {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
+			pressed := false
 
 			// Handle any input from a pointer.
 			for _, ev := range gtx.Events(gDirs) {
 				if ev, ok := ev.(pointer.Event); ok {
-					_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
+					if ev.Type == pointer.Press {
+						_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
+						audioPlay(mov)
+
+						if mov != Invalid {
+							setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+								game.Moves, game.Count, game.Removed, game.Seq)
+						}
+
+						if game.Count == 0 {
+							if !game.Winner() {
+								setTitle(w, "You Win!")
+							} else {
+								w.Invalidate()
+							}
+						}
+
+						pressed = true
+					} else { // Move
+						x, y, dir := game.Peek(int(ev.Position.X), int(ev.Position.Y))
+						if dir != Empty {
+							cx, cy = x, y
+						}
+					}
+				}
+			}
+
+			// Register to listen for pointer events.
+			pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
+			pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
+
+			render(gtx, cx, cy, pressed)
+			e.Frame(gtx.Ops)
+
+		case key.Event:
+			if e.State == key.Press {
+				switch e.Name {
+				case key.NameEscape, "Q", "X":
+					w.Close()
+
+				case key.NameUpArrow:
+					sx, sy := game.ScreenCoords(0, 0, cx, cy-1)
+					if _, _, dir := game.Peek(sx, sy); dir != InvalidDir {
+						cy--
+						w.Invalidate()
+					}
+
+				case key.NameDownArrow:
+					sx, sy := game.ScreenCoords(0, 0, cx, cy+1)
+					if _, _, dir := game.Peek(sx, sy); dir != InvalidDir {
+						cy++
+						w.Invalidate()
+					}
+
+				case key.NameLeftArrow:
+					sx, sy := game.ScreenCoords(0, 0, cx-1, cy)
+					if _, _, dir := game.Peek(sx, sy); dir != InvalidDir {
+						cx -= 1
+						w.Invalidate()
+					}
+
+				case key.NameRightArrow:
+					sx, sy := game.ScreenCoords(0, 0, cx+1, cy)
+					if _, _, dir := game.Peek(sx, sy); dir != InvalidDir {
+						cx += 1
+						w.Invalidate()
+					}
+
+				case key.NameSpace:
+					x, y := game.ScreenCoords(0, 0, cx, cy)
+					_, _, mov := game.Update(x, y, Move)
 					audioPlay(mov)
 
 					if mov != Invalid {
@@ -107,26 +190,10 @@ func loop(w *app.Window) {
 					if game.Count == 0 {
 						if !game.Winner() {
 							setTitle(w, "You Win!")
-						} else {
-							w.Invalidate()
 						}
 					}
 
-				}
-			}
-
-			// Register to listen for pointer Drag events.
-			pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
-			pointer.InputOp{Tag: gDirs, Types: pointer.Press}.Add(gtx.Ops)
-
-			render(gtx, e.Size)
-			e.Frame(gtx.Ops)
-
-		case key.Event:
-			if e.State == key.Press {
-				switch e.Name {
-				case key.NameEscape, "Q", "X":
-					w.Close()
+					w.Invalidate()
 
 				case "U": // undo
 					if _, _, ok := game.Undo(); ok {
@@ -181,7 +248,7 @@ func loop(w *app.Window) {
 	}
 }
 
-func render(gtx layout.Context, sz image.Point) {
+func render(gtx layout.Context, px, py int, pressed bool) {
 	layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 		if canvas == nil {
 			canvas = imaging.New(gw, gh, bgColor)
@@ -193,6 +260,14 @@ func render(gtx layout.Context, sz image.Point) {
 			for x, col := range row {
 				im := gDirs[col]
 
+				if !pressed && px == x && py == y {
+					if col == Empty {
+						im = gDot
+					} else {
+						im = imaging.Invert(im)
+					}
+				}
+
 				draw.Draw(canvas,
 					im.Bounds().Add(image.Point{x * cell.X, y * cell.Y}),
 					im, image.Point{}, draw.Over)
@@ -201,7 +276,7 @@ func render(gtx layout.Context, sz image.Point) {
 
 		canvasOp := paint.NewImageOp(canvas)
 		img := widget.Image{Src: canvasOp}
-		img.Scale = float32(sz.X) / float32(gtx.Px(unit.Dp(float32(sz.X))))
+		img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
 
 		return img.Layout(gtx)
 	})
