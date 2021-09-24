@@ -104,43 +104,47 @@ func loop(w *app.Window) {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
-			pressed := false
 
-			// Handle any input from a pointer.
-			for _, ev := range gtx.Events(gDirs) {
-				if ev, ok := ev.(pointer.Event); ok {
-					if ev.Type == pointer.Press {
-						_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
-						audioPlay(mov)
+			layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
+				pressed := false
 
-						if mov != Invalid {
-							setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-								game.Moves, game.Count, game.Removed, game.Seq)
-						}
+				// Handle any input from a pointer.
+				for _, ev := range gtx.Events(gDirs) {
+					if ev, ok := ev.(pointer.Event); ok {
+						if ev.Type == pointer.Press {
+							_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
+							audioPlay(mov)
 
-						if game.Count == 0 {
-							if !game.Winner() {
-								setTitle(w, "You Win!")
-							} else {
-								w.Invalidate()
+							if mov != Invalid {
+								setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+									game.Moves, game.Count, game.Removed, game.Seq)
 							}
-						}
 
-						pressed = true
-					} else { // Move
-						x, y, dir := game.Peek(int(ev.Position.X), int(ev.Position.Y))
-						if dir != Empty {
-							cx, cy = x, y
+							if game.Count == 0 {
+								if !game.Winner() {
+									setTitle(w, "You Win!")
+								} else {
+									w.Invalidate()
+								}
+							}
+
+							pressed = true
+						} else { // Move
+							x, y, dir := game.Peek(int(ev.Position.X), int(ev.Position.Y))
+							if dir != Empty {
+								cx, cy = x, y
+							}
 						}
 					}
 				}
-			}
 
-			// Register to listen for pointer events.
-			pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
-			pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
+				// Register to listen for pointer events.
+				pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
+				pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
 
-			render(gtx, cx, cy, pressed)
+				return render(gtx, cx, cy, pressed)
+			})
+
 			e.Frame(gtx.Ops)
 
 		case key.Event:
@@ -248,36 +252,34 @@ func loop(w *app.Window) {
 	}
 }
 
-func render(gtx layout.Context, px, py int, pressed bool) {
-	layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
-		if canvas == nil {
-			canvas = imaging.New(gw, gh, bgColor)
-		} else {
-			draw.Draw(canvas, canvas.Bounds(), &image.Uniform{bgColor}, image.ZP, draw.Src)
-		}
+func render(gtx layout.Context, px, py int, pressed bool) layout.Dimensions {
+	if canvas == nil {
+		canvas = imaging.New(gw, gh, bgColor)
+	} else {
+		draw.Draw(canvas, canvas.Bounds(), &image.Uniform{bgColor}, image.ZP, draw.Src)
+	}
 
-		for y, row := range game.Screen {
-			for x, col := range row {
-				im := gDirs[col]
+	for y, row := range game.Screen {
+		for x, col := range row {
+			im := gDirs[col]
 
-				if !pressed && px == x && py == y {
-					if col == Empty {
-						im = gDot
-					} else {
-						im = imaging.Invert(im)
-					}
+			if !pressed && px == x && py == y {
+				if col == Empty {
+					im = gDot
+				} else {
+					im = imaging.Invert(im)
 				}
-
-				draw.Draw(canvas,
-					im.Bounds().Add(image.Point{x * cell.X, y * cell.Y}),
-					im, image.Point{}, draw.Over)
 			}
+
+			draw.Draw(canvas,
+				im.Bounds().Add(image.Point{x * cell.X, y * cell.Y}),
+				im, image.Point{}, draw.Over)
 		}
+	}
 
-		canvasOp := paint.NewImageOp(canvas)
-		img := widget.Image{Src: canvasOp}
-		img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
+	canvasOp := paint.NewImageOp(canvas)
+	img := widget.Image{Src: canvasOp}
+	img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
 
-		return img.Layout(gtx)
-	})
+	return img.Layout(gtx)
 }
