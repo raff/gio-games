@@ -1,3 +1,5 @@
+//go:build !ios && !android && !js
+
 package main
 
 import (
