@@ -39,9 +39,7 @@ var (
 	cell  image.Point
 
 	canvas draw.Image
-	gw, gh int
-
-	wopts []app.Option
+	wopts  []app.Option
 )
 
 func setTitle(w *app.Window, msg string, args ...interface{}) {
@@ -68,11 +66,6 @@ func gioGame() {
 		gDot = img
 	}
 
-	game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
-
-	gw = gameWidth * cell.X
-	gh = gameHeight * cell.Y
-
 	wopts = []app.Option{
 		app.Title("Arrows"), // title is first option
 		app.Size(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
@@ -88,9 +81,21 @@ func gioGame() {
 	app.Main()
 }
 
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+
+	return b
+}
+
 func loop(w *app.Window) {
-	// th := material.NewTheme(gofont.Collection())
 	var ops op.Ops
+
+	game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
+
+	gw := gameWidth * cell.X
+	gh := gameHeight * cell.Y
 
 	cx, cy := 1, 1
 
@@ -104,6 +109,16 @@ func loop(w *app.Window) {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
+
+			if gw > e.Size.X || gh > e.Size.Y {
+				gw = min(gw, e.Size.X)
+				gh = min(gh, e.Size.Y)
+
+				gameWidth = gw / cell.X
+				gameHeight = gh / cell.Y
+
+				game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
+			}
 
 			layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				pressed := false
@@ -142,7 +157,7 @@ func loop(w *app.Window) {
 				pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
 				pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
 
-				return render(gtx, cx, cy, pressed)
+				return render(gtx, gw, gh, cx, cy, pressed)
 			})
 
 			e.Frame(gtx.Ops)
@@ -252,7 +267,7 @@ func loop(w *app.Window) {
 	}
 }
 
-func render(gtx layout.Context, px, py int, pressed bool) layout.Dimensions {
+func render(gtx layout.Context, gw, gh, px, py int, pressed bool) layout.Dimensions {
 	if canvas == nil {
 		canvas = imaging.New(gw, gh, bgColor)
 	} else {
