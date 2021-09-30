@@ -195,6 +195,11 @@ func (g *Game) Peek(x, y int) (int, int, Dir) {
 	return -1, -1, InvalidDir
 }
 
+func (g *Game) canRemove(cur Dir, x, y int) bool {
+	cell := g.Screen[y][x]
+	return /* cell == cur || */ cell == Empty
+}
+
 //
 // update game based on screen coordinates
 // returns game coordinates (and false if outside of boundaries)
@@ -215,102 +220,68 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 	if op > None {
 		var px, py int
 
-		switch g.Screen[cy][cx] {
-		case Up:
-			for py = cy; py > 0 && g.Screen[py-1][cx] == Empty; py-- {
-			}
+		curdir := g.Screen[cy][cx]
 
-			if py != cy {
-				if py == 0 {
-					g.Count--
-					g.Removed++
-					g.Seq++
-					res = Remove
-				} else {
-					if op != Move {
-						return
-					}
-
-					g.Screen[py][cx] = Up
-					res = Move
+		update := func(removing bool, x, y int) (ret Updates) {
+			if removing { // got to the end, remove current arrow
+				g.Count--
+				g.Removed++
+				g.Seq++
+				ret = Remove
+			} else { // partial move
+				if op != Move {
+					return None // we requested full move
 				}
 
-				g.Push(cx, py, Empty, cx, cy, g.Screen[cy][cx])
-				g.Screen[cy][cx] = Empty
-				g.Moves++
-
+				g.Screen[y][x] = curdir // move into new position
 			}
+
+			g.Push(x, y, Empty, cx, cy, g.Screen[cy][cx])
+			g.Screen[cy][cx] = Empty // remove from old position
+			g.Moves++
+			return Move
+		}
+
+		switch curdir {
+		case Up:
+			for py = cy; py > 0 && g.canRemove(Up, cx, py-1); py-- {
+			}
+
+			if py == cy {
+				return
+			}
+
+			res = update(py == 0, cx, py)
 
 		case Down:
-			for py = cy; py < g.Height-1 && g.Screen[py+1][cx] == Empty; py++ {
+			for py = cy; py < g.Height-1 && g.canRemove(Down, cx, py+1); py++ {
 			}
 
-			if py != cy {
-				if py == g.Height-1 {
-					g.Count--
-					g.Removed++
-					g.Seq++
-					res = Remove
-				} else {
-					if op != Move {
-						return
-					}
-					g.Screen[py][cx] = Down
-					res = Move
-				}
-
-				g.Push(cx, py, Empty, cx, cy, g.Screen[cy][cx])
-				g.Screen[cy][cx] = Empty
-				g.Moves++
+			if py == cy {
+				return
 			}
+
+			res = update(py == g.Height-1, cx, py)
 
 		case Left:
-			for px = cx; px > 0 && g.Screen[cy][px-1] == Empty; px-- {
+			for px = cx; px > 0 && g.canRemove(Left, px-1, cy); px-- {
 			}
 
-			if px != cx {
-				if px == 0 {
-					g.Count--
-					g.Removed++
-					g.Seq++
-					res = Remove
-				} else {
-					if op != Move {
-						return
-					}
-
-					g.Screen[cy][px] = Left
-					res = Move
-				}
-
-				g.Push(px, cy, Empty, cx, cy, g.Screen[cy][cx])
-				g.Screen[cy][cx] = Empty
-				g.Moves++
+			if px == cx {
+				return
 			}
+
+			res = update(px == 0, px, cy)
 
 		case Right:
-			for px = cx; px < g.Width-1 && g.Screen[cy][px+1] == Empty; px++ {
+			for px = cx; px < g.Width-1 && g.canRemove(Right, px+1, cy); px++ {
 			}
 
-			if px != cx {
-				if px == g.Width-1 {
-					g.Count--
-					g.Removed++
-					g.Seq++
-					res = Remove
-				} else {
-					if op != Move {
-						return
-					}
-
-					g.Screen[cy][px] = Right
-					res = Move
-				}
-
-				g.Push(px, cy, Empty, cx, cy, g.Screen[cy][cx])
-				g.Screen[cy][cx] = Empty
-				g.Moves++
+			if px == cx {
+				return
 			}
+
+			res = update(px == g.Width-1, px, cy)
 		}
 	}
 
