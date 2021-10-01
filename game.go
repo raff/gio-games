@@ -234,12 +234,13 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				}
 
 				g.Screen[y][x] = curdir // move into new position
+				ret = Move
 			}
 
 			g.Push(x, y, Empty, cx, cy, g.Screen[cy][cx])
 			g.Screen[cy][cx] = Empty // remove from old position
 			g.Moves++
-			return Move
+			return
 		}
 
 		switch curdir {
