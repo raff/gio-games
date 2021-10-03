@@ -293,6 +293,7 @@ func loop(w *app.Window) {
 
 				case "P": // autoplay
 					autoplay = true
+					w.Invalidate()
 				}
 			}
 		}
