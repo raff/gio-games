@@ -156,7 +156,12 @@ func loop(w *app.Window) {
 				if gameover || autoplay {
 					if _, done := playturn(w); done {
 						gameover = true
-					} else if autoplay {
+
+						if !game.Winner() {
+							setTitle(w, "You Win!")
+							dotscreen = true
+						}
+					} else if !gameover && autoplay {
 						audioPlay(Shuffle)
 						game.Shuffle(shuffleDir)
 						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
