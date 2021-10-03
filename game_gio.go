@@ -89,6 +89,32 @@ func min(a, b int) int {
 	return b
 }
 
+func playturn(w *app.Window) (bool, bool) {
+	moved := Invalid
+
+	for y := 1; y < game.Height-1; y++ {
+		for x := 1; x < game.Width-1; x++ {
+			x, y := game.ScreenCoords(0, 0, x, y)
+			_, _, mov := game.Update(x, y, Remove)
+			if mov > moved {
+				moved = mov
+			}
+		}
+	}
+
+	audioPlay(moved)
+
+	setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+		game.Moves, game.Count, game.Removed, game.Seq)
+
+	if game.Count != 0 && moved != None {
+		game.Seq = 0
+	}
+
+	w.Invalidate()
+	return moved != None, game.Count == 0
+}
+
 func loop(w *app.Window) {
 	var ops op.Ops
 
@@ -98,6 +124,10 @@ func loop(w *app.Window) {
 	gh := gameHeight * cell.Y
 
 	cx, cy := 1, 1
+
+	gameover := false
+	autoplay := false
+	dotscreen := false
 
 	for e := range w.Events() {
 		switch e := e.(type) {
@@ -123,31 +153,45 @@ func loop(w *app.Window) {
 			layout.Center.Layout(gtx, func(gtx layout.Context) layout.Dimensions {
 				pressed := false
 
-				// Handle any input from a pointer.
-				for _, ev := range gtx.Events(gDirs) {
-					if ev, ok := ev.(pointer.Event); ok {
-						if ev.Type == pointer.Press {
-							_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
-							audioPlay(mov)
+				if gameover || autoplay {
+					if _, done := playturn(w); done {
+						gameover = true
+					} else if autoplay {
+						audioPlay(Shuffle)
+						game.Shuffle(shuffleDir)
+						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+							game.Moves, game.Count, game.Removed, game.Seq)
+					}
+				} else {
+					// Handle any input from a pointer.
+					for _, ev := range gtx.Events(gDirs) {
+						if ev, ok := ev.(pointer.Event); ok {
+							if ev.Type == pointer.Press {
+								_, _, mov := game.Update(int(ev.Position.X), int(ev.Position.Y), Move)
+								audioPlay(mov)
 
-							if mov != Invalid {
-								setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-									game.Moves, game.Count, game.Removed, game.Seq)
-							}
+								if mov != Invalid {
+									setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+										game.Moves, game.Count, game.Removed, game.Seq)
+								}
 
-							if game.Count == 0 {
-								if !game.Winner() {
-									setTitle(w, "You Win!")
-								} else {
+								if game.Count == 0 {
+									gameover = true
+
+									if !game.Winner() {
+										setTitle(w, "You Win!")
+										dotscreen = true
+									}
+
 									w.Invalidate()
 								}
-							}
 
-							pressed = true
-						} else { // Move
-							x, y, dir := game.Peek(int(ev.Position.X), int(ev.Position.Y))
-							if dir != Empty {
-								cx, cy = x, y
+								pressed = true
+							} else { // Move
+								x, y, dir := game.Peek(int(ev.Position.X), int(ev.Position.Y))
+								if dir != Empty {
+									cx, cy = x, y
+								}
 							}
 						}
 					}
@@ -157,7 +201,7 @@ func loop(w *app.Window) {
 				pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
 				pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
 
-				return render(gtx, gw, gh, cx, cy, pressed)
+				return render(gtx, gw, gh, cx, cy, pressed, dotscreen)
 			})
 
 			e.Frame(gtx.Ops)
@@ -207,8 +251,11 @@ func loop(w *app.Window) {
 					}
 
 					if game.Count == 0 {
+						gameover = true
+
 						if !game.Winner() {
 							setTitle(w, "You Win!")
+							dotscreen = true
 						}
 					}
 
@@ -225,6 +272,9 @@ func loop(w *app.Window) {
 					audioPlay(Undo)
 					game.Setup(gameWidth, gameHeight, cell.X, cell.Y)
 					setTitle(w, "Arrows")
+					gameover = false
+					dotscreen = false
+					autoplay = false
 					w.Invalidate()
 
 				case "S": // reshuffle
@@ -235,39 +285,21 @@ func loop(w *app.Window) {
 					w.Invalidate()
 
 				case "H": // help: remove all "free" arrows
-					moved := Invalid
-
-					for y := 1; y < game.Height-1; y++ {
-						for x := 1; x < game.Width-1; x++ {
-							x, y := game.ScreenCoords(0, 0, x, y)
-							_, _, mov := game.Update(x, y, Remove)
-							if mov > moved {
-								moved = mov
-							}
-						}
+					_, gameover = playturn(w)
+					if gameover && !game.Winner() {
+						setTitle(w, "You Win!")
+						dotscreen = true
 					}
 
-					audioPlay(moved)
-
-					setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-						game.Moves, game.Count, game.Removed, game.Seq)
-
-					if game.Count == 0 {
-						if !game.Winner() {
-							setTitle(w, "You Win!")
-						}
-					} else if moved != None {
-						game.Seq = 0
-					}
-
-					w.Invalidate()
+				case "P": // autoplay
+					autoplay = true
 				}
 			}
 		}
 	}
 }
 
-func render(gtx layout.Context, gw, gh, px, py int, pressed bool) layout.Dimensions {
+func render(gtx layout.Context, gw, gh, px, py int, pressed, dotscreen bool) layout.Dimensions {
 	if canvas == nil {
 		canvas = imaging.New(gw, gh, bgColor)
 	} else {
@@ -278,7 +310,9 @@ func render(gtx layout.Context, gw, gh, px, py int, pressed bool) layout.Dimensi
 		for x, col := range row {
 			im := gDirs[col]
 
-			if !pressed && px == x && py == y {
+			if dotscreen {
+				im = gDot
+			} else if !pressed && px == x && py == y {
 				if col == Empty {
 					im = gDot
 				} else {
