@@ -108,11 +108,13 @@ func (g *Game) Setup(w, h, cw, ch int) {
 
 		g.Screen = append(g.Screen, line)
 	}
+
+	g.simplify()
 }
 
 //
 // shuffle arrows
-// (actually replace arrows where present)
+// (actually replace/rotate arrows where present)
 //
 func (g *Game) Shuffle(dir Dir) {
 	g.Count = 0
@@ -158,7 +160,52 @@ func (g *Game) Shuffle(dir Dir) {
 		}
 	}
 
+	if dir == Empty {
+		g.simplify()
+	}
+
 	g.stack = g.stack[:0]
+}
+
+func (g *Game) simplify() {
+	opposite := map[Dir]Dir{
+		Up:    Down,
+		Down:  Up,
+		Left:  Right,
+		Right: Left,
+	}
+
+	for y, row := range g.Screen {
+		for x, col := range row {
+			if col == Empty {
+				continue
+			}
+
+			for c := 0; c < DirCount; c++ {
+				opp := opposite[col]
+
+				if g.Screen[y][x-1] == opp || g.Screen[y][x+1] == opp || g.Screen[y-1][x] == opp || g.Screen[y+1][x] == opp {
+					switch col {
+					case Up:
+						col = Left
+					case Down:
+						col = Right
+					case Left:
+						col = Down
+					case Right:
+						col = Up
+					}
+
+					continue
+				}
+
+				break
+			}
+
+			g.Screen[y][x] = col
+
+		}
+	}
 }
 
 //

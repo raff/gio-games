@@ -50,6 +50,9 @@ func main() {
 
 	case "r", "right":
 		shuffleDir = Right
+
+	default:
+		shuffleDir = Empty
 	}
 
 	// Initialize audio
