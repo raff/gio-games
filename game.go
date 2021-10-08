@@ -48,6 +48,7 @@ type Game struct {
 	Removed int
 	Moves   int
 	Seq     int
+	MaxSeq  int
 
 	cellwidth  int
 	cellheight int
@@ -279,6 +280,9 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				g.Count--
 				g.Removed++
 				g.Seq++
+				if g.Seq > g.MaxSeq {
+					g.MaxSeq = g.Seq
+				}
 				ret = Remove
 			} else { // partial move
 				if op != Move {
@@ -348,7 +352,11 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 		g.Count++
 		g.Removed--
 		if g.Seq > 0 {
+			if g.Seq == g.MaxSeq {
+				g.MaxSeq--
+			}
 			g.Seq--
+
 		}
 		return m.X2, m.Y2, true
 	}

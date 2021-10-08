@@ -42,8 +42,12 @@ var (
 	wopts  []app.Option
 )
 
-func setTitle(w *app.Window, msg string, args ...interface{}) {
-	wopts[0] = app.Title(fmt.Sprintf(msg, args...))
+func setTitle(w *app.Window, title string) {
+	if title == "" {
+		title = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v/%v",
+			game.Moves, game.Count, game.Removed, game.Seq, game.MaxSeq)
+	}
+	wopts[0] = app.Title(title)
 	w.Option(wopts...)
 }
 
@@ -105,8 +109,7 @@ func playturn(w *app.Window, title bool) (bool, bool) {
 	audioPlay(moved)
 
 	if title {
-		setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-			game.Moves, game.Count, game.Removed, game.Seq)
+		setTitle(w, "")
 	}
 
 	if game.Count != 0 && moved != None {
@@ -166,8 +169,7 @@ func loop(w *app.Window) {
 					} else if !gameover && autoplay {
 						audioPlay(Shuffle)
 						game.Shuffle(shuffleDir)
-						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-							game.Moves, game.Count, game.Removed, game.Seq)
+						setTitle(w, "")
 					}
 				} else {
 					// Handle any input from a pointer.
@@ -178,8 +180,7 @@ func loop(w *app.Window) {
 								audioPlay(mov)
 
 								if mov != Invalid {
-									setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-										game.Moves, game.Count, game.Removed, game.Seq)
+									setTitle(w, "")
 								}
 
 								if game.Count == 0 {
@@ -253,8 +254,7 @@ func loop(w *app.Window) {
 					audioPlay(mov)
 
 					if mov != Invalid {
-						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-							game.Moves, game.Count, game.Removed, game.Seq)
+						setTitle(w, "")
 					}
 
 					if game.Count == 0 {
@@ -271,8 +271,7 @@ func loop(w *app.Window) {
 				case "U": // undo
 					if _, _, ok := game.Undo(); ok {
 						audioPlay(Undo)
-						setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-							game.Moves, game.Count, game.Removed, game.Seq)
+						setTitle(w, "")
 						w.Invalidate()
 					}
 				case "R": // reset
@@ -287,8 +286,7 @@ func loop(w *app.Window) {
 				case "S": // reshuffle
 					audioPlay(Shuffle)
 					game.Shuffle(shuffleDir)
-					setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-						game.Moves, game.Count, game.Removed, game.Seq)
+					setTitle(w, "")
 					w.Invalidate()
 
 				case "H": // help: remove all "free" arrows

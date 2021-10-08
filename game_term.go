@@ -84,12 +84,12 @@ func drawScreen(s tcell.Screen) {
 }
 
 func checkScreen(s tcell.Screen, x, y int, op Updates) (cx, cy int, mov Updates) {
-	msg := "                                         "
+	msg := "                                            "
 
 	cx, cy, mov = game.Update(x-sx-1, y-sy-1, op)
 	if mov != Invalid {
 		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v       ", game.Moves, game.Count, game.Removed, game.Seq)
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v/%v       ", game.Moves, game.Count, game.Removed, game.Seq, game.MaxSeq)
 	}
 
 	drawScreen(s)
