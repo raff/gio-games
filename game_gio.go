@@ -89,7 +89,7 @@ func min(a, b int) int {
 	return b
 }
 
-func playturn(w *app.Window) (bool, bool) {
+func playturn(w *app.Window, title bool) (bool, bool) {
 	moved := Invalid
 
 	for y := 1; y < game.Height-1; y++ {
@@ -104,8 +104,10 @@ func playturn(w *app.Window) (bool, bool) {
 
 	audioPlay(moved)
 
-	setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
-		game.Moves, game.Count, game.Removed, game.Seq)
+	if title {
+		setTitle(w, "moves=%v remain=%v removed=%v seq=%v",
+			game.Moves, game.Count, game.Removed, game.Seq)
+	}
 
 	if game.Count != 0 && moved != None {
 		game.Seq = 0
@@ -154,7 +156,7 @@ func loop(w *app.Window) {
 				pressed := false
 
 				if gameover || autoplay {
-					if _, done := playturn(w); done {
+					if _, done := playturn(w, !gameover); done {
 						gameover = true
 
 						if !game.Winner() {
@@ -290,10 +292,14 @@ func loop(w *app.Window) {
 					w.Invalidate()
 
 				case "H": // help: remove all "free" arrows
-					_, gameover = playturn(w)
-					if gameover && !game.Winner() {
-						setTitle(w, "You Win!")
-						dotscreen = true
+					_, gameover = playturn(w, true)
+					if gameover {
+						if !game.Winner() {
+							setTitle(w, "You Win!")
+							dotscreen = true
+						}
+
+						w.Invalidate()
 					}
 
 				case "P": // autoplay
