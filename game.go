@@ -154,7 +154,12 @@ func (g *Game) Shuffle(dir Dir) {
 
 				default:
 					// random shuffle
-					g.Screen[y][x] = Dir(rand.Intn(DirCount) + 1) // 0 is Empty
+					var newdir Dir
+					for newdir = g.Screen[y][x]; newdir == g.Screen[y][x]; newdir = Dir(rand.Intn(DirCount) + 1) { // 0 is Empty
+						// try again
+					}
+
+					g.Screen[y][x] = newdir
 				}
 			}
 		}
