@@ -30,14 +30,10 @@ const (
 	Undo    = Updates(-2)
 )
 
-type FromTo struct {
-	X1 int
-	Y1 int
-	D1 Dir
-
-	X2 int
-	Y2 int
-	D2 Dir
+type Cell struct {
+	X int
+	Y int
+	D Dir
 }
 
 type Game struct {
@@ -53,24 +49,22 @@ type Game struct {
 	cellwidth  int
 	cellheight int
 
-	stack []FromTo
+	stack [][]Cell
 }
 
-func (g *Game) Push(x1, y1 int, d1 Dir, x2, y2 int, d2 Dir) {
-	g.stack = append(g.stack, FromTo{X1: x1, Y1: y1, D1: d1, X2: x2, Y2: y2, D2: d2})
+func (g *Game) Push(moves []Cell) {
+	g.stack = append(g.stack, moves)
 }
 
-func (g *Game) Pop() *FromTo {
+func (g *Game) Pop() (moves []Cell) {
 	l := len(g.stack)
 
 	if l == 0 {
 		return nil
 	}
 
-	move := g.stack[l-1]
-	g.stack = g.stack[:l-1]
-
-	return &move
+	moves, g.stack = g.stack[l-1], g.stack[:l-1]
+	return
 }
 
 //
@@ -294,7 +288,7 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 				ret = Move
 			}
 
-			g.Push(x, y, Empty, cx, cy, g.Screen[cy][cx])
+			g.Push([]Cell{{x, y, Empty}, {cx, cy, g.Screen[cy][cx]}})
 			g.Screen[cy][cx] = Empty // remove from old position
 			g.Moves++
 			return
@@ -347,9 +341,11 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 }
 
 func (g *Game) Undo() (cx, cy int, ok bool) {
-	if m := g.Pop(); m != nil {
-		g.Screen[m.Y1][m.X1] = m.D1
-		g.Screen[m.Y2][m.X2] = m.D2
+	if moves := g.Pop(); moves != nil {
+		for _, m := range moves {
+			cx, cy = m.X, m.Y
+			g.Screen[m.Y][m.X] = m.D
+		}
 		g.Count++
 		g.Removed--
 		if g.Seq > 0 {
@@ -359,7 +355,7 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 			g.Seq--
 
 		}
-		return m.X2, m.Y2, true
+		return cx, cy, true
 	}
 
 	return -1, -1, false
