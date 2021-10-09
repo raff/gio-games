@@ -84,6 +84,10 @@ func drawScreen(s tcell.Screen) {
 }
 
 func checkScreen(s tcell.Screen, x, y int, op Updates) (cx, cy int, mov Updates) {
+	return checkScreenText(s, x, y, op, true)
+}
+
+func checkScreenText(s tcell.Screen, x, y int, op Updates, text bool) (cx, cy int, mov Updates) {
 	msg := "                                            "
 
 	cx, cy, mov = game.Update(x-sx-1, y-sy-1, op)
@@ -93,7 +97,10 @@ func checkScreen(s tcell.Screen, x, y int, op Updates) (cx, cy int, mov Updates)
 	}
 
 	drawScreen(s)
-	drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
+
+	if text {
+		drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
+	}
 
 	return
 }
@@ -207,11 +214,11 @@ func termGame() {
 			} else if crune == 'R' || crune == 'r' { // reset
 				audioPlay(Undo)
 				game.Setup(gameWidth, gameHeight, cw, ch)
-				drawScreen(s)
+				checkScreen(s, cx, cy, None)
 			} else if crune == 'S' || crune == 's' { // reshuffle
 				audioPlay(Shuffle)
 				game.Shuffle(shuffleDir)
-				drawScreen(s)
+				checkScreen(s, cx, cy, None)
 			} else if crune == 'H' || crune == 'h' { // remove all "free" arrows
 				moved := Invalid
 
@@ -268,7 +275,7 @@ func termGame() {
 				break
 			}
 
-			checkScreen(s, cx, cy, None)
+			checkScreenText(s, cx, cy, None, false)
 
 			if game.Count > 0 {
 				if !winner {
