@@ -84,6 +84,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 	g.Removed = 0
 	g.Moves = 0
 	g.Seq = 0
+	g.MaxSeq = 0
 
 	g.cellwidth = cw
 	g.cellheight = ch
