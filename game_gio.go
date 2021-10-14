@@ -44,8 +44,8 @@ var (
 
 func setTitle(w *app.Window, title string) {
 	if title == "" {
-		title = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v/%v",
-			game.Moves, game.Count, game.Removed, game.Seq, game.MaxSeq)
+		title = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v/%v score=%v",
+			game.Moves, game.Count, game.Removed, game.Seq, game.MaxSeq, game.Score)
 	}
 	wopts[0] = app.Title(title)
 	w.Option(wopts...)
