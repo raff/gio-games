@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"time"
 )
@@ -38,15 +39,16 @@ type Cell struct {
 }
 
 type Game struct {
-	Screen  [][]Dir
-	Width   int
-	Height  int
-	Count   int
-	Removed int
-	Moves   int
-	Seq     int
-	MaxSeq  int
-	Score   int
+	Screen    [][]Dir
+	Width     int
+	Height    int
+	Count     int
+	Removed   int
+	Moves     int
+	Seq       int
+	MaxSeq    int
+	Score     int
+	Completed bool
 
 	cellwidth  int
 	cellheight int
@@ -82,6 +84,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 	g.Seq = 0
 	g.MaxSeq = 0
 	g.Score = 0
+	g.Completed = false
 
 	g.cellwidth = cw
 	g.cellheight = ch
@@ -276,12 +279,14 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 
 		update := func(removing bool, x, y int) (ret Updates) {
 			if removing { // got to the end, remove current arrow
-				g.Count--
-				g.Removed++
-				g.Seq++
-				g.Score += g.Seq
-				if g.Seq > g.MaxSeq {
-					g.MaxSeq = g.Seq
+				if !g.Completed {
+					g.Count--
+					g.Removed++
+					g.Seq++
+					g.Score += g.Seq
+					if g.Seq > g.MaxSeq {
+						g.MaxSeq = g.Seq
+					}
 				}
 				ret = Remove
 			} else { // partial move
@@ -295,7 +300,9 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 
 			g.Push([]Cell{{x, y, Empty, removing}, {cx, cy, g.Screen[cy][cx], false}})
 			g.Screen[cy][cx] = Empty // remove from old position
-			g.Moves++
+			if !g.Completed {
+				g.Moves++
+			}
 			return
 		}
 
@@ -357,7 +364,7 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 			}
 		}
 
-		if removed {
+		if removed && !g.Completed {
 			g.Count++
 			g.Removed--
 			if g.Seq > 0 {
@@ -395,6 +402,8 @@ var WinBanner = [][]Dir{
 }
 
 func (g *Game) Winner() bool {
+	g.Completed = true
+
 	ww, hw := len(WinBanner[0]), len(WinBanner)
 
 	if ww >= g.Width || hw >= g.Height {
@@ -418,4 +427,40 @@ func (g *Game) Winner() bool {
 	return true
 }
 
+type ScoreInfo struct {
+	Moves  int
+	MaxSeq int
+	Score  int
+}
+
+type Scores map[string]ScoreInfo
+
+func (s Scores) Update(g *Game) *ScoreInfo {
+	key := fmt.Sprintf("%vx%v", g.Width, g.Height)
+	info := s[key]
+
+	best := false
+
+	if info.Moves == 0 || g.Moves < info.Moves {
+		info.Moves = g.Moves
+		best = true
+	}
+	if g.MaxSeq > info.MaxSeq {
+		info.MaxSeq = g.MaxSeq
+		best = true
+	}
+	if g.Score > info.Score {
+		info.Score = g.Score
+		best = true
+	}
+
+	if best {
+		s[key] = info
+		return &info
+	}
+
+	return nil
+}
+
 var game Game
+var scores = Scores{}

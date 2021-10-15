@@ -88,18 +88,27 @@ func checkScreen(s tcell.Screen, x, y int, op Updates) (cx, cy int, mov Updates)
 }
 
 func checkScreenText(s tcell.Screen, x, y int, op Updates, text bool) (cx, cy int, mov Updates) {
-	msg := "                                                        "
+	msg := ""
 
 	cx, cy, mov = game.Update(x-sx-1, y-sy-1, op)
 	if mov != Invalid {
 		s.ShowCursor(game.ScreenCoords(sx+1, sy+1, cx, cy))
-		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v/%v score=%v      ",
+		msg = fmt.Sprintf("moves=%v remain=%v removed=%v seq=%v/%v score=%v",
 			game.Moves, game.Count, game.Removed, game.Seq, game.MaxSeq, game.Score)
 	}
 
 	drawScreen(s)
 
+	w, _ := s.Size()
+	for x := 0; x < w; x++ {
+		s.SetContent(x, sy+gameHeight+2, ' ', nil, boxStyle)
+	}
+
 	if text {
+		drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
+	} else if newscore := scores.Update(&game); newscore != nil {
+		msg := fmt.Sprintf("New best score: moves=%v seq=%v score=%v\n",
+			newscore.Moves, newscore.MaxSeq, newscore.Score)
 		drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
 	}
 
@@ -127,6 +136,12 @@ func centerScreen(s tcell.Screen) (int, int, bool) {
 
 	return -1, -1, false
 }
+
+const (
+	EvPlay = 1
+	EvWin  = 2
+	EvLoop = 4
+)
 
 func termGame() {
 	// Initialize screen
@@ -203,7 +218,7 @@ func termGame() {
 
 				if game.Count == 0 {
 					if game.Winner() {
-						s.PostEvent(tcell.NewEventInterrupt(true))
+						s.PostEvent(tcell.NewEventInterrupt(EvWin))
 					}
 				}
 			} else if crune == 'U' || crune == 'u' { // undo
@@ -237,7 +252,7 @@ func termGame() {
 
 				if game.Count == 0 {
 					if game.Winner() {
-						s.PostEvent(tcell.NewEventInterrupt(true))
+						s.PostEvent(tcell.NewEventInterrupt(EvWin))
 					}
 				} else if moved != None {
 					game.Seq = 0
@@ -245,7 +260,7 @@ func termGame() {
 
 				checkScreen(s, cx, cy, None)
 			} else if crune == 'P' || crune == 'p' { // auto play
-				s.PostEvent(tcell.NewEventInterrupt(false))
+				s.PostEvent(tcell.NewEventInterrupt(EvPlay))
 			}
 		case *tcell.EventMouse:
 			cx, cy = ev.Position()
@@ -256,35 +271,44 @@ func termGame() {
 
 				if game.Count == 0 {
 					if game.Winner() {
-						s.PostEvent(tcell.NewEventInterrupt(true))
+						s.PostEvent(tcell.NewEventInterrupt(EvWin))
 					}
 				}
 			}
 
 		case *tcell.EventInterrupt:
-			winner := ev.Data().(bool)
-			count := game.Count
+			evType := ev.Data().(int)
+			changes := false
 
 			for y := 1; y < game.Height-1; y++ {
 				for x := 1; x < game.Width-1; x++ {
 					x, y := game.ScreenCoords(0, 0, x, y)
-					game.Update(x, y, Remove)
+					_, _, mov := game.Update(x, y, Remove)
+					if mov > None {
+						changes = true
+					}
 				}
 			}
 
-			if count == game.Count { // no changes
-				break
-			}
+			checkScreenText(s, cx, cy, None, (evType&EvPlay) == EvPlay)
 
-			checkScreenText(s, cx, cy, None, false)
-
-			if game.Count > 0 {
-				if !winner {
-					audioPlay(Shuffle)
-					game.Shuffle(shuffleDir)
+			if evType == EvWin || changes {
+				if (evType & EvPlay) == EvPlay { // autoplay
+					if game.Count == 0 {
+						if game.Winner() {
+							evType = EvWin
+						} else {
+							continue
+						}
+					} else {
+						audioPlay(Shuffle)
+						game.Shuffle(shuffleDir)
+					}
 				}
 
-				time.AfterFunc(300*time.Millisecond, func() { s.PostEvent(ev) })
+				time.AfterFunc(300*time.Millisecond, func() {
+					s.PostEvent(tcell.NewEventInterrupt(evType | EvLoop))
+				})
 			}
 		}
 	}

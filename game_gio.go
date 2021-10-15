@@ -51,6 +51,13 @@ func setTitle(w *app.Window, title string) {
 	w.Option(wopts...)
 }
 
+func updateScore() {
+	if newscore := scores.Update(&game); newscore != nil {
+		fmt.Printf("New best score: moves=%v seq=%v score=%v\n",
+			newscore.Moves, newscore.MaxSeq, newscore.Score)
+	}
+}
+
 func gioGame() {
 	if img, err := png.Decode(bytes.NewBuffer(pngUp)); err != nil {
 		log.Fatal(err)
@@ -161,6 +168,7 @@ func loop(w *app.Window) {
 				if gameover || autoplay {
 					if _, done := playturn(w, !gameover); done {
 						gameover = true
+						updateScore()
 
 						if !game.Winner() {
 							setTitle(w, "You Win!")
@@ -185,6 +193,7 @@ func loop(w *app.Window) {
 
 								if game.Count == 0 {
 									gameover = true
+									updateScore()
 
 									if !game.Winner() {
 										setTitle(w, "You Win!")
@@ -259,6 +268,7 @@ func loop(w *app.Window) {
 
 					if game.Count == 0 {
 						gameover = true
+						updateScore()
 
 						if !game.Winner() {
 							setTitle(w, "You Win!")
@@ -292,6 +302,8 @@ func loop(w *app.Window) {
 				case "H": // help: remove all "free" arrows
 					_, gameover = playturn(w, true)
 					if gameover {
+						updateScore()
+
 						if !game.Winner() {
 							setTitle(w, "You Win!")
 							dotscreen = true
