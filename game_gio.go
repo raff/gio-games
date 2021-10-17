@@ -8,7 +8,6 @@ import (
 	"image/draw"
 	"image/png"
 	"log"
-	"os"
 
 	_ "embed"
 
@@ -58,7 +57,7 @@ func updateScore() {
 	}
 }
 
-func gioGame() {
+func gioGame(terminate func()) {
 	if img, err := png.Decode(bytes.NewBuffer(pngUp)); err != nil {
 		log.Fatal(err)
 	} else {
@@ -87,7 +86,7 @@ func gioGame() {
 	go func() {
 		w := app.NewWindow(wopts...)
 		loop(w)
-		os.Exit(0)
+		terminate()
 	}()
 	app.Main()
 }

@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	_ "embed"
@@ -143,7 +142,7 @@ const (
 	EvLoop = 4
 )
 
-func termGame() {
+func termGame(terminate func()) {
 	// Initialize screen
 	s, err := tcell.NewScreen()
 	if err != nil {
@@ -163,7 +162,7 @@ func termGame() {
 	// Event loop
 	quit := func() {
 		s.Fini()
-		os.Exit(0)
+		terminate()
 	}
 
 	ops := map[bool]Updates{true: Move, false: None}

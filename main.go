@@ -1,8 +1,10 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"log"
+	"os"
 	"runtime"
 )
 
@@ -11,6 +13,7 @@ var (
 	gameHeight = 20
 
 	shuffleDir = Empty // random
+	scorefile  = os.ExpandEnv("${HOME}/.arrows")
 )
 
 func hasTerm() bool {
@@ -41,6 +44,16 @@ func main() {
 		log.Fatal("invalid width or height")
 	}
 
+	if f, err := os.Open(scorefile); err == nil {
+		dec := json.NewDecoder(f)
+		if err := dec.Decode(&scores); err != nil {
+			log.Printf("cannot read %v: %v", scorefile, err)
+		}
+		f.Close()
+	}
+
+	defer terminateMain()
+
 	gameWidth += 2  // add border
 	gameHeight += 2 // to simplify boundary checks
 
@@ -61,8 +74,22 @@ func main() {
 	}
 
 	if term {
-		termGame()
+		termGame(terminateMain)
 	} else {
-		gioGame()
+		gioGame(terminateMain)
 	}
+}
+
+func terminateMain() {
+	if f, err := os.Create(scorefile); err == nil {
+		enc := json.NewEncoder(f)
+		if err := enc.Encode(scores); err != nil {
+			log.Printf("cannot write %v: %v", scorefile, err)
+		}
+		f.Close()
+	} else {
+		log.Println(err)
+	}
+
+	os.Exit(0)
 }
