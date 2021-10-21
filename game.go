@@ -32,9 +32,14 @@ const (
 )
 
 type Cell struct {
-	X       int
-	Y       int
-	D       Dir
+	X int
+	Y int
+	D Dir
+}
+
+type CellMoves struct {
+	Cells   []Cell
+	Count   int
 	Removed bool
 }
 
@@ -53,21 +58,21 @@ type Game struct {
 	cellwidth  int
 	cellheight int
 
-	stack [][]Cell
+	stack []*CellMoves
 }
 
-func (g *Game) Push(moves []Cell) {
-	g.stack = append(g.stack, moves)
+func (g *Game) Push(count int, removed bool, moves []Cell) {
+	g.stack = append(g.stack, &CellMoves{Cells: moves, Count: count, Removed: removed})
 }
 
-func (g *Game) Pop() (moves []Cell) {
+func (g *Game) Pop() (cm *CellMoves) {
 	l := len(g.stack)
 
 	if l == 0 {
 		return nil
 	}
 
-	moves, g.stack = g.stack[l-1], g.stack[:l-1]
+	cm, g.stack = g.stack[l-1], g.stack[:l-1]
 	return
 }
 
@@ -249,11 +254,6 @@ func (g *Game) Peek(x, y int) (int, int, Dir) {
 	return -1, -1, InvalidDir
 }
 
-func (g *Game) canRemove(cur Dir, x, y int) bool {
-	cell := g.Screen[y][x]
-	return /* cell == cur || */ cell == Empty
-}
-
 //
 // update game based on screen coordinates
 // returns game coordinates (and false if outside of boundaries)
@@ -273,79 +273,124 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 
 	if op > None {
 		var px, py int
-		//var moves []Cell
+		var cells, empty []Cell
 
 		curdir := g.Screen[cy][cx]
 
-		update := func(removing bool, x, y int) (ret Updates) {
+		update := func(removing bool) (ret Updates) {
+			lc := len(cells)
+			le := len(empty)
+
 			if removing { // got to the end, remove current arrow
 				if !g.Completed {
-					g.Count--
-					g.Removed++
-					g.Seq++
-					g.Score += g.Seq
-					if g.Seq > g.MaxSeq {
-						g.MaxSeq = g.Seq
+					for _ = range cells {
+						g.Count--
+						g.Removed++
+						g.Seq++
+						g.Score += g.Seq
+						if g.Seq > g.MaxSeq {
+							g.MaxSeq = g.Seq
+						}
 					}
 				}
+				le = 0
 				ret = Remove
 			} else { // partial move
 				if op != Move {
 					return None // we requested full move
 				}
 
-				g.Screen[y][x] = curdir // move into new position
+				if le > lc {
+					empty = empty[le-lc:]
+					le = len(empty)
+				}
+
 				ret = Move
 			}
 
-			g.Push([]Cell{{x, y, Empty, removing}, {cx, cy, g.Screen[cy][cx], false}})
-			g.Screen[cy][cx] = Empty // remove from old position
+			for _, c := range cells[:lc] {
+				g.Screen[c.Y][c.X] = Empty // remove from old position
+			}
+
+			if le > 0 {
+				cells = append(cells, empty...)
+
+				for _, c := range cells[len(cells)-lc:] {
+					g.Screen[c.Y][c.X] = curdir // move into new position
+				}
+			}
+
+			g.Push(lc, removing, cells)
 			if !g.Completed {
-				g.Moves++
+				g.Moves += lc
 			}
 			return
 		}
 
 		switch curdir {
 		case Up:
-			for py = cy; py > 0 && g.canRemove(Up, cx, py-1); py-- {
+			for py = cy; py > 0 && g.Screen[py][cx] == curdir; py-- {
+				cells = append(cells, Cell{X: cx, Y: py, D: curdir})
 			}
 
-			if py == cy {
+			for ppy := py; ppy >= 0 && g.Screen[ppy][cx] == Empty; ppy-- {
+				py = ppy
+				empty = append(empty, Cell{X: cx, Y: py, D: Empty})
+			}
+
+			if g.Screen[py][cx] != Empty {
 				return
 			}
 
-			res = update(py == 0, cx, py)
+			res = update(py == 0)
 
 		case Down:
-			for py = cy; py < g.Height-1 && g.canRemove(Down, cx, py+1); py++ {
+			for py = cy; py < g.Height-1 && g.Screen[py][cx] == curdir; py++ {
+				cells = append(cells, Cell{X: cx, Y: py, D: curdir})
 			}
 
-			if py == cy {
+			for ppy := py; ppy <= g.Height-1 && g.Screen[ppy][cx] == Empty; ppy++ {
+				py = ppy
+				empty = append(empty, Cell{X: cx, Y: py, D: Empty})
+			}
+
+			if g.Screen[py][cx] != Empty {
 				return
 			}
 
-			res = update(py == g.Height-1, cx, py)
+			res = update(py == g.Height-1)
 
 		case Left:
-			for px = cx; px > 0 && g.canRemove(Left, px-1, cy); px-- {
+			for px = cx; px > 0 && g.Screen[cy][px] == curdir; px-- {
+				cells = append(cells, Cell{X: px, Y: cy, D: curdir})
 			}
 
-			if px == cx {
+			for ppx := px; ppx >= 0 && g.Screen[cy][ppx] == Empty; ppx-- {
+				px = ppx
+				empty = append(empty, Cell{X: px, Y: cy, D: Empty})
+			}
+
+			if g.Screen[cy][px] != Empty {
 				return
 			}
 
-			res = update(px == 0, px, cy)
+			res = update(px == 0)
 
 		case Right:
-			for px = cx; px < g.Width-1 && g.canRemove(Right, px+1, cy); px++ {
+			for px = cx; px < g.Width-1 && g.Screen[cy][px] == curdir; px++ {
+				cells = append(cells, Cell{X: px, Y: cy, D: curdir})
 			}
 
-			if px == cx {
+			for ppx := px; ppx <= g.Width-1 && g.Screen[cy][ppx] == Empty; ppx++ {
+				px = ppx
+				empty = append(empty, Cell{X: px, Y: cy, D: Empty})
+			}
+
+			if g.Screen[cy][px] != Empty {
 				return
 			}
 
-			res = update(px == g.Width-1, px, cy)
+			res = update(px == g.Width-1)
 		}
 	}
 
@@ -353,27 +398,27 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 }
 
 func (g *Game) Undo() (cx, cy int, ok bool) {
-	if moves := g.Pop(); moves != nil {
-		removed := false
-
-		for _, m := range moves {
+	if cm := g.Pop(); cm != nil {
+		for _, m := range cm.Cells {
 			cx, cy = m.X, m.Y
 			g.Screen[m.Y][m.X] = m.D
-			if m.Removed {
-				removed = true
-			}
 		}
 
-		if removed && !g.Completed {
-			g.Count++
-			g.Removed--
-			if g.Seq > 0 {
-				if g.Seq == g.MaxSeq {
-					g.MaxSeq--
-				}
-				g.Score -= g.Seq
-				g.Seq--
+		if !g.Completed {
+			g.Moves -= cm.Count
 
+			if cm.Removed {
+				g.Count += cm.Count
+				g.Removed -= cm.Count
+				if g.Seq > 0 {
+					for n := cm.Count; n > 0; n-- {
+						if g.Seq == g.MaxSeq {
+							g.MaxSeq--
+						}
+						g.Score -= g.Seq
+						g.Seq--
+					}
+				}
 			}
 		}
 
