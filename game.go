@@ -322,7 +322,7 @@ func (g *Game) Update(x, y int, op Updates) (cx, cy int, res Updates) {
 
 			g.Push(lc, removing, cells)
 			if !g.Completed {
-				g.Moves += lc
+				g.Moves++
 			}
 			return
 		}
@@ -405,7 +405,7 @@ func (g *Game) Undo() (cx, cy int, ok bool) {
 		}
 
 		if !g.Completed {
-			g.Moves -= cm.Count
+			g.Moves--
 
 			if cm.Removed {
 				g.Count += cm.Count
