@@ -519,5 +519,10 @@ func (s Scores) Update(g *Game) *ScoreInfo {
 	return nil
 }
 
+func (s Scores) Get(width, height int) []ScoreInfo {
+	key := fmt.Sprintf("%vx%v", width, height)
+	return s[key]
+}
+
 var game Game
 var scores = Scores{}

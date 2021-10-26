@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"runtime"
@@ -33,6 +34,7 @@ func main() {
 	flag.IntVar(&gameHeight, "height", gameHeight, "screen height")
 	audio := flag.Bool("audio", true, "play audio effects")
 	sdir := flag.String("shuffle", "random", "shuffle direction (left, right, random)")
+	score := flag.Bool("score", false, "display scoreboard")
 
 	if hasTerm() {
 		flag.BoolVar(&term, "term", term, "terminal UI vs. graphics UI")
@@ -56,6 +58,18 @@ func main() {
 
 	gameWidth += 2  // add border
 	gameHeight += 2 // to simplify boundary checks
+
+	if *score {
+		fmt.Println()
+		fmt.Println("       Scoreboard")
+		fmt.Println("     Moves Seq Score")
+
+		for i, s := range scores.Get(gameWidth, gameHeight) {
+			fmt.Printf("%2d:  %4d  %3d %5d\n", i+1, s.Moves, s.MaxSeq, s.Score)
+		}
+
+		return
+	}
 
 	switch *sdir {
 	case "l", "left":
