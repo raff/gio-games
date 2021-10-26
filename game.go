@@ -478,11 +478,19 @@ type ScoreInfo struct {
 	Score  int
 }
 
-type Scores map[string]ScoreInfo
+type Scores map[string][]ScoreInfo
 
 func (s Scores) Update(g *Game) *ScoreInfo {
 	key := fmt.Sprintf("%vx%v", g.Width, g.Height)
-	info := s[key]
+	ss, ok := s[key]
+
+	if !ok {
+		info := ScoreInfo{Moves: g.Moves, MaxSeq: g.MaxSeq, Score: g.Score}
+		s[key] = []ScoreInfo{info}
+		return &info
+	}
+
+	info := ss[0]
 
 	best := false
 
@@ -500,7 +508,11 @@ func (s Scores) Update(g *Game) *ScoreInfo {
 	}
 
 	if best {
-		s[key] = info
+		ss = append([]ScoreInfo{info}, ss...)
+		if len(ss) > 10 {
+			ss = ss[:10]
+		}
+		s[key] = ss
 		return &info
 	}
 
