@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"math/rand"
 	"time"
 )
@@ -44,16 +43,17 @@ type CellMoves struct {
 }
 
 type Game struct {
-	Screen    [][]Dir
-	Width     int
-	Height    int
-	Count     int
-	Removed   int
-	Moves     int
-	Seq       int
-	MaxSeq    int
-	Score     int
-	Completed bool
+	Screen     [][]Dir
+	Width      int
+	Height     int
+	Count      int
+	Removed    int
+	Moves      int
+	Seq        int
+	MaxSeq     int
+	Score      int
+	FinalScore int
+	Completed  bool
 
 	cellwidth  int
 	cellheight int
@@ -89,6 +89,7 @@ func (g *Game) Setup(w, h, cw, ch int) {
 	g.Seq = 0
 	g.MaxSeq = 0
 	g.Score = 0
+	g.FinalScore = 0
 	g.Completed = false
 
 	g.cellwidth = cw
@@ -478,49 +479,51 @@ type ScoreInfo struct {
 	Score  int
 }
 
-type Scores map[string][]ScoreInfo
+type Scores map[int][]ScoreInfo
 
-func (s Scores) Update(g *Game) *ScoreInfo {
-	key := fmt.Sprintf("%vx%v", g.Width, g.Height)
-	ss, ok := s[key]
+func scoreKey(w, h int) int {
+	return w*1000 + h
+}
 
-	if !ok {
-		info := ScoreInfo{Moves: g.Moves, MaxSeq: g.MaxSeq, Score: g.Score}
-		s[key] = []ScoreInfo{info}
+func (sc Scores) Update(g *Game) *ScoreInfo {
+	n := g.Removed - g.Moves
+	g.FinalScore = g.Score + (n * n / 2)
+
+	info := ScoreInfo{Moves: g.Moves, MaxSeq: g.MaxSeq, Score: g.FinalScore}
+
+	key := scoreKey(g.Width, g.Height)
+	ss := sc[key]
+	if ss == nil { // first entry
+		sc[key] = []ScoreInfo{info}
 		return &info
 	}
 
-	info := ss[0]
+	for i, si := range ss {
+		if g.FinalScore > si.Score {
+			ss = append(ss[:i+1], ss[i:]...)
+			ss[i] = info
+			if len(ss) > 10 {
+				ss = ss[:10]
+			}
+			sc[key] = ss
+			if i == 0 {
+				return &info
+			}
 
-	best := false
-
-	if info.Moves == 0 || g.Moves < info.Moves {
-		info.Moves = g.Moves
-		best = true
-	}
-	if g.MaxSeq > info.MaxSeq {
-		info.MaxSeq = g.MaxSeq
-		best = true
-	}
-	if g.Score > info.Score {
-		info.Score = g.Score
-		best = true
-	}
-
-	if best {
-		ss = append([]ScoreInfo{info}, ss...)
-		if len(ss) > 10 {
-			ss = ss[:10]
+			return nil
 		}
-		s[key] = ss
-		return &info
+	}
+
+	if len(ss) < 10 {
+		ss = append(ss, info)
+		sc[key] = ss
 	}
 
 	return nil
 }
 
 func (s Scores) Get(width, height int) []ScoreInfo {
-	key := fmt.Sprintf("%vx%v", width, height)
+	key := scoreKey(width, height)
 	return s[key]
 }
 

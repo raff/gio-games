@@ -105,9 +105,16 @@ func checkScreenText(s tcell.Screen, x, y int, op Updates, text bool) (cx, cy in
 
 	if text {
 		drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
-	} else if newscore := scores.Update(&game); newscore != nil {
-		msg := fmt.Sprintf("New best score: moves=%v seq=%v score=%v\n",
-			newscore.Moves, newscore.MaxSeq, newscore.Score)
+	} else {
+		var msg string
+
+		if newscore := scores.Update(&game); newscore != nil {
+			msg = fmt.Sprintf("New best score: moves=%v seq=%v score=%v\n",
+				newscore.Moves, newscore.MaxSeq, newscore.Score)
+		} else {
+			msg = fmt.Sprintf("Score: moves=%v seq=%v score=%v\n",
+				game.Moves, game.MaxSeq, game.FinalScore)
+		}
 		drawText(s, sx, sy+gameHeight+2, sx+len(msg)+1, sy+gameHeight+2, boxStyle, msg)
 	}
 

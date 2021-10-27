@@ -50,11 +50,18 @@ func setTitle(w *app.Window, title string) {
 	w.Option(wopts...)
 }
 
-func updateScore() {
-	if newscore := scores.Update(&game); newscore != nil {
-		fmt.Printf("New best score: moves=%v seq=%v score=%v\n",
-			newscore.Moves, newscore.MaxSeq, newscore.Score)
+func updateScore(printed bool) bool {
+	if !printed {
+		if newscore := scores.Update(&game); newscore != nil {
+			fmt.Printf("New best score: moves=%v seq=%v score=%v\n",
+				newscore.Moves, newscore.MaxSeq, newscore.Score)
+		} else {
+			fmt.Printf("Score: moves=%v seq=%v score=%v\n",
+				game.Moves, game.MaxSeq, game.FinalScore)
+		}
 	}
+
+	return true
 }
 
 func gioGame(terminate func()) {
@@ -139,6 +146,7 @@ func loop(w *app.Window) {
 	gameover := false
 	autoplay := false
 	dotscreen := false
+	printscore := false
 
 	for e := range w.Events() {
 		switch e := e.(type) {
@@ -167,9 +175,11 @@ func loop(w *app.Window) {
 				if gameover || autoplay {
 					if _, done := playturn(w, !gameover); done {
 						gameover = true
-						updateScore()
+						printscore = updateScore(printscore)
 
-						if !game.Winner() {
+						if game.Winner() {
+							setTitle(w, "")
+						} else {
 							setTitle(w, "You Win!")
 							dotscreen = true
 						}
@@ -192,9 +202,11 @@ func loop(w *app.Window) {
 
 								if game.Count == 0 {
 									gameover = true
-									updateScore()
+									printscore = updateScore(printscore)
 
-									if !game.Winner() {
+									if game.Winner() {
+										setTitle(w, "")
+									} else {
 										setTitle(w, "You Win!")
 										dotscreen = true
 									}
@@ -267,9 +279,11 @@ func loop(w *app.Window) {
 
 					if game.Count == 0 {
 						gameover = true
-						updateScore()
+						printscore = updateScore(printscore)
 
-						if !game.Winner() {
+						if game.Winner() {
+							setTitle(w, "")
+						} else {
 							setTitle(w, "You Win!")
 							dotscreen = true
 						}
@@ -290,6 +304,7 @@ func loop(w *app.Window) {
 					gameover = false
 					dotscreen = false
 					autoplay = false
+					printscore = false
 					w.Invalidate()
 
 				case "S": // reshuffle
@@ -301,9 +316,11 @@ func loop(w *app.Window) {
 				case "H": // help: remove all "free" arrows
 					_, gameover = playturn(w, true)
 					if gameover {
-						updateScore()
+						printscore = updateScore(printscore)
 
-						if !game.Winner() {
+						if game.Winner() {
+							setTitle(w, "")
+						} else {
 							setTitle(w, "You Win!")
 							dotscreen = true
 						}
