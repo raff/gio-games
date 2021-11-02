@@ -226,8 +226,9 @@ func loop(w *app.Window) {
 				}
 
 				// Register to listen for pointer events.
-				pointer.Rect(image.Rectangle{Max: e.Size}).Add(gtx.Ops)
+				pr := pointer.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
 				pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
+				pr.Pop()
 
 				return render(gtx, gw, gh, cx, cy, pressed, dotscreen)
 			})

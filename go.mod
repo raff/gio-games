@@ -3,7 +3,7 @@ module github.com/raff/arrows
 go 1.17
 
 require (
-	gioui.org v0.0.0-20210922165522-6665e0ef0fe6
+	gioui.org v0.0.0-20211026101311-1eab4b84a6d3
 	github.com/disintegration/imaging v1.6.2
 	github.com/faiface/beep v1.1.0
 	github.com/gdamore/tcell/v2 v2.4.0
@@ -11,7 +11,7 @@ require (
 
 require (
 	gioui.org/cpu v0.0.0-20210817075930-8d6a761490d2 // indirect
-	gioui.org/shader v1.0.4 // indirect
+	gioui.org/shader v1.0.6 // indirect
 	github.com/gdamore/encoding v1.0.0 // indirect
 	github.com/hajimehoshi/oto v0.7.1 // indirect
 	github.com/lucasb-eyer/go-colorful v1.0.3 // indirect
