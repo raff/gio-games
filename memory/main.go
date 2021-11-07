@@ -44,7 +44,8 @@ var (
 	coverColor  = color.NRGBA{0, 0, 32, 255}
 	borderColor = color.NRGBA{200, 200, 255, 0}
 
-	wait = 300 * time.Millisecond
+	waitTurn = 300 * time.Millisecond
+	waitGame = 5 * time.Second
 
 	canvas draw.Image
 
@@ -142,7 +143,8 @@ func factors(n int) (int, int) {
 
 func main() {
 	flag.IntVar(&maxcards, "cards", maxcards, "maximum number of cards")
-	flag.DurationVar(&wait, "wait", wait, "wait before hiding cards")
+	flag.DurationVar(&waitTurn, "turn", waitTurn, "wait before hiding cards (between turns)")
+	flag.DurationVar(&waitGame, "game", waitGame, "wait before hiding cards (at game start)")
 	flag.Parse()
 
 	if maxcards > hcount*vcount {
@@ -198,6 +200,7 @@ func loop(w *app.Window) error {
 	var frame draw.Image
 
 	deal := make([]int, 0, 2)
+	newGame := true
 
 	defer func() {
 		fmt.Println(moves, "moves", matches, "matches")
@@ -216,27 +219,30 @@ func loop(w *app.Window) error {
 				case "R":
 					initGame()
 					deal = deal[:0]
+					newGame = true
 				}
 			}
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
 
-			for _, ev := range gtx.Events("memory") {
-				if ev, ok := ev.(pointer.Event); ok {
-					if ev.Type == pointer.Press {
-						x, y := gameCoords(int(ev.Position.X), int(ev.Position.Y))
-						si := gameIndex(x, y)
+			if !newGame {
+				for _, ev := range gtx.Events("memory") {
+					if ev, ok := ev.(pointer.Event); ok {
+						if ev.Type == pointer.Press {
+							x, y := gameCoords(int(ev.Position.X), int(ev.Position.Y))
+							si := gameIndex(x, y)
 
-						if len(deal) < 2 && states[si] == false {
-							states[si] = true
-							deal = append(deal, si)
+							if len(deal) < 2 && states[si] == false {
+								states[si] = true
+								deal = append(deal, si)
 
-							if len(deal) == 2 {
-								moves++
+								if len(deal) == 2 {
+									moves++
+								}
+
+								frame = nil
 							}
-
-							frame = nil
 						}
 					}
 				}
@@ -249,7 +255,7 @@ func loop(w *app.Window) error {
 					deal = deal[:0]
 					matches++
 				} else {
-					time.AfterFunc(wait, func() {
+					time.AfterFunc(waitTurn, func() {
 						states[d1] = false
 						states[d2] = false
 						deal = deal[:0]
@@ -257,6 +263,16 @@ func loop(w *app.Window) error {
 						w.Invalidate()
 					})
 				}
+			}
+
+			if newGame {
+				frame = canvas
+
+				time.AfterFunc(waitGame, func() {
+					newGame = false
+					frame = nil
+					w.Invalidate()
+				})
 			}
 
 			if frame == nil {
