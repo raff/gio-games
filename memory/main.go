@@ -145,6 +145,7 @@ func main() {
 	flag.IntVar(&maxcards, "cards", maxcards, "maximum number of cards")
 	flag.DurationVar(&waitTurn, "turn", waitTurn, "wait before hiding cards (between turns)")
 	flag.DurationVar(&waitGame, "game", waitGame, "wait before hiding cards (at game start)")
+	audio := flag.Bool("audio", true, "play audio")
 	flag.Parse()
 
 	if maxcards > hcount*vcount {
@@ -154,6 +155,10 @@ func main() {
 	rand.Seed(time.Now().Unix())
 
 	initGame()
+
+	if *audio {
+		audioInit()
+	}
 
 	go func() {
 		w := app.NewWindow(
@@ -211,6 +216,7 @@ func loop(w *app.Window) error {
 		switch e := e.(type) {
 		case system.DestroyEvent:
 			return e.Err
+
 		case key.Event:
 			if e.State == key.Press {
 				switch e.Name {
@@ -225,30 +231,31 @@ func loop(w *app.Window) error {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
+			update := false
 
-			if !newGame {
-				for _, ev := range gtx.Events("memory") {
-					if ev, ok := ev.(pointer.Event); ok {
-						if ev.Type == pointer.Press {
-							x, y := gameCoords(int(ev.Position.X), int(ev.Position.Y))
-							si := gameIndex(x, y)
+			for _, ev := range gtx.Events("memory") {
+				if !newGame {
+					if ev, ok := ev.(pointer.Event); ok && ev.Type == pointer.Press {
+						x, y := gameCoords(int(ev.Position.X), int(ev.Position.Y))
+						si := gameIndex(x, y)
 
-							if len(deal) < 2 && states[si] == false {
-								states[si] = true
-								deal = append(deal, si)
+						if len(deal) < 2 && states[si] == false {
+							states[si] = true
+							deal = append(deal, si)
 
-								if len(deal) == 2 {
-									moves++
-								}
-
-								frame = nil
+							if len(deal) == 2 {
+								moves++
 							}
+
+							audioPlay(AudioFlip)
+							frame = nil
+							update = true
 						}
 					}
 				}
 			}
 
-			if len(deal) == 2 {
+			if update && len(deal) == 2 {
 				d1, d2 := deal[0], deal[1]
 
 				if cards[d1] == cards[d2] {
@@ -261,6 +268,7 @@ func loop(w *app.Window) error {
 						deal = deal[:0]
 						frame = nil
 						w.Invalidate()
+						audioPlay(AudioReset)
 					})
 				}
 			}
@@ -271,6 +279,7 @@ func loop(w *app.Window) error {
 				time.AfterFunc(waitGame, func() {
 					newGame = false
 					frame = nil
+					fmt.Println("invalidate")
 					w.Invalidate()
 				})
 			}
