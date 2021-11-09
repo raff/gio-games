@@ -279,7 +279,6 @@ func loop(w *app.Window) error {
 				time.AfterFunc(waitGame, func() {
 					newGame = false
 					frame = nil
-					fmt.Println("invalidate")
 					w.Invalidate()
 				})
 			}
