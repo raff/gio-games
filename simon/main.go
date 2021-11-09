@@ -34,11 +34,11 @@ type Pad struct {
 	color  color.NRGBA
 }
 
-func (pad Pad) Layout(gtx C, th *material.Theme, pressed bool) D {
+func (pad Pad) Layout(gtx C, th *material.Theme, active bool) D {
 	return material.Clickable(gtx, pad.button, func(gtx C) D {
 		return layout.UniformInset(unit.Dp(4)).Layout(gtx, func(gtx C) D {
 			c := pad.color
-			if gtx.Queue == nil || !pressed {
+			if !active {
 				c = Darker(c)
 			}
 
@@ -110,52 +110,59 @@ func loop(w *app.Window) error {
 		{new(widget.Clickable), "4", color.NRGBA{A: 255, R: 0, G: 128, B: 255}}, // blue
 	}
 
+	// var seq []int
+
 	grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
+	disable := false
+	pressed := -1
 
 	for {
 		e := <-w.Events()
 		switch e := e.(type) {
 		case system.DestroyEvent:
 			return e.Err
-		case system.FrameEvent:
-			// nothing for now
-			gtx := layout.NewContext(&ops, e)
 
-			//in := layout.UniformInset(unit.Dp(8))
+		case system.FrameEvent:
+			gtx := layout.NewContext(&ops, e)
+			if disable {
+				gtx = gtx.Disabled()
+			}
 
 			grid.Layout(gtx, len(pads), func(gtx C, i int) D {
 				gtx.Constraints.Max.X = gtx.Constraints.Max.X / 2
 				gtx.Constraints.Max.Y = int(wh) / 2
 
-				for pads[i].button.Clicked() {
-					log.Println(pads[i].label, "clicked")
+				if pressed < 0 && pads[i].button.Pressed() {
+					pressed = i
 				}
 
-				dims := pads[i].Layout(gtx, th, pads[i].button.Pressed())
+				dims := pads[i].Layout(gtx, th, pressed == i)
 				pointer.CursorNameOp{Name: pointer.CursorPointer}.Add(gtx.Ops)
 				return dims
 			})
 
 			e.Frame(gtx.Ops)
+			pressed = -1
 
 		case key.Event:
 			if e.State == key.Press {
 				switch e.Name {
-				case "1":
-					pads[0].button.Click()
-					w.Invalidate()
-				case "2":
-					pads[1].button.Click()
-					w.Invalidate()
-				case "3":
-					pads[2].button.Click()
-					w.Invalidate()
-				case "4":
-					pads[3].button.Click()
-					w.Invalidate()
+				case "1", "2", "3", "4":
+					if !disable {
+						pressed = int(e.Name[0] - '1')
+						w.Invalidate()
+					}
+
 				case "X", "Q":
 					w.Close()
+
+				case "`":
+					disable = !disable
+					w.Invalidate()
 				}
+			} else {
+				pressed = -1
+				w.Invalidate()
 			}
 		}
 	}
