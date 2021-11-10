@@ -14,6 +14,8 @@ import (
 	"github.com/faiface/beep/wav"
 )
 
+const audioBuzz = 4
+
 var (
 	//go:embed assets/simonSound1.wav
 	wav1 []byte
@@ -27,8 +29,11 @@ var (
 	//go:embed assets/simonSound4.wav
 	wav4 []byte
 
+	//go:embed assets/buzz.wav
+	wavBuzz []byte
+
 	audioBuffer *beep.Buffer
-	audioLimits [4]int
+	audioLimits [5]int
 
 	audioPlaying bool
 )
@@ -58,6 +63,12 @@ func audioInit() {
 	}
 	defer a4.Close()
 
+	aBuzz, _, err := wav.Decode(bytes.NewBuffer(wavBuzz))
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	defer aBuzz.Close()
+
 	speaker.Init(format.SampleRate, format.SampleRate.N(time.Second/10))
 
 	audioBuffer = beep.NewBuffer(format)
@@ -69,10 +80,13 @@ func audioInit() {
 	audioLimits[1] = audioBuffer.Len() // audioLimits[0] to audioLimits[1]
 
 	audioBuffer.Append(a3)
-	audioLimits[2] = audioBuffer.Len() // 0 to audioLimits[0]
+	audioLimits[2] = audioBuffer.Len() // audioLimits[1] to audioLimits[2]
 
 	audioBuffer.Append(a4)
-	audioLimits[3] = audioBuffer.Len() // audioLimits[0] to audioLimits[1]
+	audioLimits[3] = audioBuffer.Len() // audioLimits[2] to audioLimits[3]
+
+	audioBuffer.Append(aBuzz)
+	audioLimits[4] = audioBuffer.Len() // audioLimits[3] to audioLimits[4]
 }
 
 func audioPlay(aid int) {

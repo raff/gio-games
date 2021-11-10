@@ -74,11 +74,17 @@ type Sequence struct {
 
 	maxval  int
 	current int
+
+	timer *time.Timer
 }
 
-func (s *Sequence) Reset() {
-	s.lindex = -1
+func (s *Sequence) Reset(add bool) {
 	s.current = -1
+	if add {
+		s.lindex = -1
+	} else {
+		s.lindex = 0
+	}
 }
 
 func (s *Sequence) Next() bool {
@@ -105,6 +111,28 @@ func (s *Sequence) Current() (curr int) {
 	return
 }
 
+func (s *Sequence) Play(w *app.Window) {
+	s.Stop()
+
+	if s.Next() {
+		w.Invalidate()
+
+		s.timer = time.AfterFunc(playInterval, func() {
+			s.Play(w)
+		})
+	}
+
+	// log.Println(sequence)
+}
+
+func (s *Sequence) Stop() {
+	if s.timer != nil {
+		t := s.timer
+		s.timer = nil
+		t.Stop()
+	}
+}
+
 var (
 	ww = float32(800)
 	wh = float32(600)
@@ -119,11 +147,7 @@ var (
 		{new(widget.Clickable), "4", color.NRGBA{A: 255, R: 0, G: 128, B: 255}}, // blue
 	}
 
-	sequence = Sequence{
-		list:    []int{0, 1, 2, 3, 3, 2, 1, 0},
-		maxval:  4,
-		current: 1,
-	}
+	sequence = Sequence{maxval: 4}
 )
 
 func main() {
@@ -152,10 +176,11 @@ func loop(w *app.Window) error {
 	th := material.NewTheme(gofont.Collection())
 
 	grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
-	disable := true
+	playSimon := true
 	selected := -1
 
-	playSequence(w)
+	sequence.Reset(true)
+	sequence.Play(w)
 
 	for {
 		e := <-w.Events()
@@ -165,26 +190,51 @@ func loop(w *app.Window) error {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
-			if disable {
+			if playSimon {
 				gtx = gtx.Disabled()
-			}
 
-			if curr := sequence.Current(); curr >= 0 {
-				selected = curr                         // light up
-				time.AfterFunc(resetTime, w.Invalidate) // and turn off
+				if curr := sequence.Current(); curr >= 0 {
+					selected = curr                         // light up
+					time.AfterFunc(resetTime, w.Invalidate) // and turn off
+				} else if !sequence.HasNext() {
+					log.Println("user play...")
+					playSimon = false
+					sequence.Reset(false)
+				}
 			} else if !sequence.HasNext() {
-				disable = false
+				playSimon = true
+				log.Println("simon play...")
+				sequence.Reset(true)
+				sequence.Play(w)
 			}
 
 			grid.Layout(gtx, len(pads), func(gtx C, i int) D {
 				gtx.Constraints.Max.X = gtx.Constraints.Max.X / 2
 				gtx.Constraints.Max.Y = int(wh) / 2
 
+				fail := false
+
 				if selected < 0 && pads[i].button.Pressed() {
 					selected = i
+
+					if !playSimon {
+						log.Println(sequence)
+
+						if sequence.Next() {
+							if curr := sequence.Current(); curr >= 0 {
+								log.Println("simon", curr, "user", selected)
+								fail = curr != selected
+							} else {
+								log.Println("nothing to compare")
+							}
+						}
+					}
 				}
 
-				if selected == i {
+				if fail {
+					audioPlay(audioBuzz)
+					w.Close()
+				} else if selected == i {
 					if !audioPlaying {
 						log.Println("play", i)
 						audioPlay(selected)
@@ -203,17 +253,13 @@ func loop(w *app.Window) error {
 			if e.State == key.Press {
 				switch e.Name {
 				case "1", "2", "3", "4":
-					if !disable {
+					if !playSimon {
 						selected = int(e.Name[0] - '1')
 						w.Invalidate()
 					}
 
 				case "X", "Q":
 					w.Close()
-
-				case "`":
-					disable = !disable
-					w.Invalidate()
 				}
 			} else {
 				selected = -1
@@ -221,16 +267,4 @@ func loop(w *app.Window) error {
 			}
 		}
 	}
-}
-
-func playSequence(w *app.Window) {
-	if sequence.Next() {
-		w.Invalidate()
-
-		time.AfterFunc(playInterval, func() {
-			playSequence(w)
-		})
-	}
-
-	// log.Println(sequence)
 }
