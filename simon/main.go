@@ -4,7 +4,9 @@ import (
 	"image"
 	"image/color"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"gioui.org/app" // app contains Window handling.
 	"gioui.org/f32"
@@ -55,17 +57,6 @@ func DrawRect(gtx C, background color.NRGBA, size image.Point, radii float32) D 
 	return layout.Dimensions{Size: size}
 }
 
-// Brighter blends color towards a brighter color.
-func Brighter(c color.NRGBA) (d color.NRGBA) {
-	const r = 0x40 // lighten ratio
-	return color.NRGBA{
-		R: byte(255 - int(255-c.R)*(255-r)/256),
-		G: byte(255 - int(255-c.G)*(255-r)/256),
-		B: byte(255 - int(255-c.B)*(255-r)/256),
-		A: c.A,
-	}
-}
-
 // Darker blends color towards a darker color.
 func Darker(c color.NRGBA) (d color.NRGBA) {
 	const r = 2 // darken ration
@@ -77,12 +68,67 @@ func Darker(c color.NRGBA) (d color.NRGBA) {
 	}
 }
 
+type Sequence struct {
+	list   []int
+	lindex int
+
+	maxval  int
+	current int
+}
+
+func (s *Sequence) Reset() {
+	s.lindex = -1
+	s.current = -1
+}
+
+func (s *Sequence) Next() bool {
+	if s.lindex == len(s.list) {
+		return false
+	}
+
+	if s.lindex < 0 {
+		s.lindex = 0
+		s.list = append(s.list, rand.Intn(s.maxval))
+	}
+
+	s.current = s.list[s.lindex]
+	s.lindex++
+	return true
+}
+
+func (s *Sequence) HasNext() bool {
+	return s.lindex < len(s.list)
+}
+
+func (s *Sequence) Current() (curr int) {
+	curr, s.current = s.current, -1
+	return
+}
+
 var (
 	ww = float32(800)
 	wh = float32(600)
+
+	playInterval = time.Second
+	resetTime    = 600 * time.Millisecond
+
+	pads = []Pad{
+		{new(widget.Clickable), "1", color.NRGBA{A: 255, R: 0, G: 200, B: 0}},   // green
+		{new(widget.Clickable), "2", color.NRGBA{A: 255, R: 255, G: 0, B: 0}},   // red
+		{new(widget.Clickable), "3", color.NRGBA{A: 255, R: 255, G: 255, B: 0}}, // yellow
+		{new(widget.Clickable), "4", color.NRGBA{A: 255, R: 0, G: 128, B: 255}}, // blue
+	}
+
+	sequence = Sequence{
+		list:    []int{1, 3, 3, 2, 1, 0, 2, 1, 1, 2, 3, 2, 3},
+		maxval:  4,
+		current: 1,
+	}
 )
 
 func main() {
+	rand.Seed(time.Now().Unix())
+
 	go func() {
 		w := app.NewWindow(
 			app.Title("Simon"),
@@ -103,18 +149,11 @@ func loop(w *app.Window) error {
 
 	th := material.NewTheme(gofont.Collection())
 
-	pads := []Pad{
-		{new(widget.Clickable), "1", color.NRGBA{A: 255, R: 0, G: 200, B: 0}},   // green
-		{new(widget.Clickable), "2", color.NRGBA{A: 255, R: 255, G: 0, B: 0}},   // red
-		{new(widget.Clickable), "3", color.NRGBA{A: 255, R: 255, G: 255, B: 0}}, // yellow
-		{new(widget.Clickable), "4", color.NRGBA{A: 255, R: 0, G: 128, B: 255}}, // blue
-	}
-
-	// var seq []int
-
 	grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
-	disable := false
-	pressed := -1
+	disable := true
+	selected := -1
+
+	playSequence(w)
 
 	for {
 		e := <-w.Events()
@@ -128,28 +167,35 @@ func loop(w *app.Window) error {
 				gtx = gtx.Disabled()
 			}
 
+			if curr := sequence.Current(); curr >= 0 {
+				selected = curr                         // light up
+				time.AfterFunc(resetTime, w.Invalidate) // and turn off
+			} else if !sequence.HasNext() {
+				disable = false
+			}
+
 			grid.Layout(gtx, len(pads), func(gtx C, i int) D {
 				gtx.Constraints.Max.X = gtx.Constraints.Max.X / 2
 				gtx.Constraints.Max.Y = int(wh) / 2
 
-				if pressed < 0 && pads[i].button.Pressed() {
-					pressed = i
+				if selected < 0 && pads[i].button.Pressed() {
+					selected = i
 				}
 
-				dims := pads[i].Layout(gtx, th, pressed == i)
+				dims := pads[i].Layout(gtx, th, selected == i)
 				pointer.CursorNameOp{Name: pointer.CursorPointer}.Add(gtx.Ops)
 				return dims
 			})
 
 			e.Frame(gtx.Ops)
-			pressed = -1
+			selected = -1
 
 		case key.Event:
 			if e.State == key.Press {
 				switch e.Name {
 				case "1", "2", "3", "4":
 					if !disable {
-						pressed = int(e.Name[0] - '1')
+						selected = int(e.Name[0] - '1')
 						w.Invalidate()
 					}
 
@@ -161,9 +207,21 @@ func loop(w *app.Window) error {
 					w.Invalidate()
 				}
 			} else {
-				pressed = -1
+				selected = -1
 				w.Invalidate()
 			}
 		}
 	}
+}
+
+func playSequence(w *app.Window) {
+	if sequence.Next() {
+		w.Invalidate()
+
+		time.AfterFunc(playInterval, func() {
+			playSequence(w)
+		})
+	}
+
+	// log.Println(sequence)
 }
