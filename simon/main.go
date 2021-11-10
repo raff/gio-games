@@ -110,7 +110,7 @@ var (
 	wh = float32(600)
 
 	playInterval = time.Second
-	resetTime    = 600 * time.Millisecond
+	resetTime    = 500 * time.Millisecond
 
 	pads = []Pad{
 		{new(widget.Clickable), "1", color.NRGBA{A: 255, R: 0, G: 200, B: 0}},   // green
@@ -120,7 +120,7 @@ var (
 	}
 
 	sequence = Sequence{
-		list:    []int{1, 3, 3, 2, 1, 0, 2, 1, 1, 2, 3, 2, 3},
+		list:    []int{0, 1, 2, 3, 3, 2, 1, 0},
 		maxval:  4,
 		current: 1,
 	}
@@ -128,6 +128,8 @@ var (
 
 func main() {
 	rand.Seed(time.Now().Unix())
+
+	audioInit()
 
 	go func() {
 		w := app.NewWindow(
@@ -180,6 +182,13 @@ func loop(w *app.Window) error {
 
 				if selected < 0 && pads[i].button.Pressed() {
 					selected = i
+				}
+
+				if selected == i {
+					if !audioPlaying {
+						log.Println("play", i)
+						audioPlay(selected)
+					}
 				}
 
 				dims := pads[i].Layout(gtx, th, selected == i)
