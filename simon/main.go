@@ -192,59 +192,98 @@ func loop(w *app.Window) error {
 			gtx := layout.NewContext(&ops, e)
 			if playSimon {
 				gtx = gtx.Disabled()
+			}
 
-				if curr := sequence.Current(); curr >= 0 {
-					selected = curr                         // light up
+			//log.Println(e)
+
+			if playSimon { // the FrameEvent is from invalidate
+				simon := sequence.Current()
+				if simon >= 0 {
+					selected = simon
 					time.AfterFunc(resetTime, w.Invalidate) // and turn off
 				} else if !sequence.HasNext() {
 					log.Println("user play...")
 					playSimon = false
 					sequence.Reset(false)
 				}
-			} else if !sequence.HasNext() {
-				playSimon = true
-				log.Println("simon play...")
-				sequence.Reset(true)
-				sequence.Play(w)
 			}
+
+			user := -1
 
 			grid.Layout(gtx, len(pads), func(gtx C, i int) D {
 				gtx.Constraints.Max.X = gtx.Constraints.Max.X / 2
 				gtx.Constraints.Max.Y = int(wh) / 2
 
-				fail := false
+				pad := pads[i]
 
-				if selected < 0 && pads[i].button.Pressed() {
-					selected = i
+				if !playSimon {
+					for _, ev := range gtx.Events(pad.label) {
+						ev, _ := ev.(pointer.Event)
 
-					if !playSimon {
-						log.Println(sequence)
-
-						if sequence.Next() {
-							if curr := sequence.Current(); curr >= 0 {
-								log.Println("simon", curr, "user", selected)
-								fail = curr != selected
-							} else {
-								log.Println("nothing to compare")
-							}
+						if ev.Type == pointer.Press {
+							user = i
+						} else if ev.Type == pointer.Release {
+							user = -1
 						}
 					}
+
+					selected = user
 				}
 
-				if fail {
-					audioPlay(audioBuzz)
-					w.Close()
-				} else if selected == i {
-					if !audioPlaying {
-						log.Println("play", i)
-						audioPlay(selected)
-					}
+				if selected == i && !audioPlaying {
+					log.Println("play", i)
+					audioPlay(selected)
 				}
 
-				dims := pads[i].Layout(gtx, th, selected == i)
+				// Register to listen for pointer events.
+				pr := pointer.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
+				pointer.InputOp{Tag: pad.label, Types: pointer.Press}.Add(gtx.Ops)
+				pr.Pop()
+
+				dims := pad.Layout(gtx, th, selected == i)
 				pointer.CursorNameOp{Name: pointer.CursorPointer}.Add(gtx.Ops)
 				return dims
 			})
+
+			if !playSimon && user >= 0 { // there are FrameEvents that are not from button clicks
+				// if user >= 0 it was a button click
+				simon := sequence.Current()
+				if simon >= 0 {
+					log.Println("simon", simon, "user", user)
+					if simon != user {
+						time.AfterFunc(playInterval, func() {
+							audioPlay(audioBuzz)
+							w.Close()
+						})
+					}
+				}
+				if !sequence.HasNext() {
+					playSimon = true
+					log.Println("simon play...")
+					sequence.Reset(true)
+					sequence.Play(w)
+				}
+			}
+
+			for i := 0; i < len(pads); i++ {
+				var pos image.Rectangle
+
+				switch i {
+				case 0:
+					pos = image.Rect(0, 0, int(ww/2), int(wh/2))
+				case 1:
+					pos = image.Rect(int(ww/2), 0, int(ww), int(wh/2))
+				case 2:
+					pos = image.Rect(0, int(wh/2), int(ww/2), int(wh))
+				case 3:
+					pos = image.Rect(int(ww/2), int(wh/2), int(ww), int(wh))
+				}
+
+				// Register to listen for pointer events.
+				pr := pointer.Rect(pos).Push(gtx.Ops)
+				pointer.InputOp{Tag: pads[i].label, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
+				pr.Pop()
+			}
 
 			e.Frame(gtx.Ops)
 			selected = -1

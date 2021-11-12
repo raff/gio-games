@@ -3,7 +3,7 @@ module github.com/raff/gio-games/simon
 go 1.17
 
 require (
-	gioui.org v0.0.0-20211107100252-3f25a49c7554
+	gioui.org v0.0.0-20211111091326-9d05f3534182
 	gioui.org/x v0.0.0-20211102210401-cead9283b8ff
 	github.com/faiface/beep v1.1.0
 )
