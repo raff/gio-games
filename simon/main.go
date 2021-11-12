@@ -71,74 +71,41 @@ func Darker(c color.NRGBA) (d color.NRGBA) {
 type Sequence struct {
 	list   []int
 	lindex int
+	maxval int
+}
 
-	maxval  int
-	current int
-
-	timer *time.Timer
+func (s *Sequence) Len() int {
+	return len(s.list)
 }
 
 func (s *Sequence) Reset(add bool) {
-	s.current = -1
+	s.lindex = 0
 	if add {
-		s.lindex = -1
-	} else {
-		s.lindex = 0
+		s.list = append(s.list, rand.Intn(s.maxval))
 	}
 }
 
-func (s *Sequence) Next() bool {
+func (s *Sequence) Next() int {
 	if s.lindex == len(s.list) {
-		return false
+		return -1
 	}
 
-	if s.lindex < 0 {
-		s.lindex = 0
-		s.list = append(s.list, rand.Intn(s.maxval))
-	}
-
-	s.current = s.list[s.lindex]
+	curr := s.list[s.lindex]
 	s.lindex++
-	return true
+	return curr
 }
 
 func (s *Sequence) HasNext() bool {
-	return s.lindex < len(s.list)
-}
-
-func (s *Sequence) Current() (curr int) {
-	curr, s.current = s.current, -1
-	return
-}
-
-func (s *Sequence) Play(w *app.Window) {
-	s.Stop()
-
-	if s.Next() {
-		w.Invalidate()
-
-		s.timer = time.AfterFunc(playInterval, func() {
-			s.Play(w)
-		})
-	}
-
-	// log.Println(sequence)
-}
-
-func (s *Sequence) Stop() {
-	if s.timer != nil {
-		t := s.timer
-		s.timer = nil
-		t.Stop()
-	}
+	next := s.lindex < len(s.list)
+	return next
 }
 
 var (
 	ww = float32(800)
 	wh = float32(600)
 
-	playInterval = time.Second
-	resetTime    = 500 * time.Millisecond
+	playInterval = 500 * time.Millisecond
+	resetTime    = time.Second
 
 	pads = []Pad{
 		{new(widget.Clickable), "1", color.NRGBA{A: 255, R: 0, G: 200, B: 0}},   // green
@@ -176,11 +143,11 @@ func loop(w *app.Window) error {
 	th := material.NewTheme(gofont.Collection())
 
 	grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
-	playSimon := true
+	simonPlay := true
 	selected := -1
 
+	log.Println("simon play...")
 	sequence.Reset(true)
-	sequence.Play(w)
 
 	for {
 		e := <-w.Events()
@@ -190,20 +157,18 @@ func loop(w *app.Window) error {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
-			if playSimon {
+			if simonPlay {
 				gtx = gtx.Disabled()
 			}
 
-			//log.Println(e)
-
-			if playSimon { // the FrameEvent is from invalidate
-				simon := sequence.Current()
+			if simonPlay { // the FrameEvent is from invalidate
+				simon := sequence.Next()
 				if simon >= 0 {
 					selected = simon
-					time.AfterFunc(resetTime, w.Invalidate) // and turn off
-				} else if !sequence.HasNext() {
+					time.AfterFunc(playInterval, w.Invalidate)
+				} else {
 					log.Println("user play...")
-					playSimon = false
+					simonPlay = false
 					sequence.Reset(false)
 				}
 			}
@@ -216,7 +181,7 @@ func loop(w *app.Window) error {
 
 				pad := pads[i]
 
-				if !playSimon {
+				if !simonPlay {
 					for _, ev := range gtx.Events(pad.label) {
 						ev, _ := ev.(pointer.Event)
 
@@ -231,7 +196,7 @@ func loop(w *app.Window) error {
 				}
 
 				if selected == i && !audioPlaying {
-					log.Println("play", i)
+					log.Println("play", i+1)
 					audioPlay(selected)
 				}
 
@@ -245,23 +210,29 @@ func loop(w *app.Window) error {
 				return dims
 			})
 
-			if !playSimon && user >= 0 { // there are FrameEvents that are not from button clicks
+			if !simonPlay && user >= 0 { // there are FrameEvents that are not from button clicks
 				// if user >= 0 it was a button click
-				simon := sequence.Current()
+				simon := sequence.Next()
 				if simon >= 0 {
-					log.Println("simon", simon, "user", user)
+					log.Println("simon", simon+1, "user", user+1)
 					if simon != user {
 						time.AfterFunc(playInterval, func() {
+							log.Println("Longest sequence:", sequence.Len())
 							audioPlay(audioBuzz)
-							w.Close()
+
+							time.AfterFunc(resetTime, func() {
+								w.Close()
+							})
 						})
 					}
 				}
 				if !sequence.HasNext() {
-					playSimon = true
-					log.Println("simon play...")
-					sequence.Reset(true)
-					sequence.Play(w)
+					time.AfterFunc(resetTime, func() {
+						log.Println("simon play...")
+						simonPlay = true
+						sequence.Reset(true)
+						w.Invalidate()
+					})
 				}
 			}
 
@@ -292,7 +263,7 @@ func loop(w *app.Window) error {
 			if e.State == key.Press {
 				switch e.Name {
 				case "1", "2", "3", "4":
-					if !playSimon {
+					if !simonPlay {
 						selected = int(e.Name[0] - '1')
 						w.Invalidate()
 					}
