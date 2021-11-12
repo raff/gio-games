@@ -8,12 +8,12 @@ import (
 	"os"
 	"time"
 
-	"gioui.org/app" // app contains Window handling.
+	"gioui.org/app"
 	"gioui.org/f32"
 	"gioui.org/font/gofont"
-	"gioui.org/io/key" // key is used for keyboard events.
+	"gioui.org/io/key"
 	"gioui.org/io/pointer"
-	"gioui.org/io/system" // system is used for system events (e.g. closing the window).
+	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
 	"gioui.org/op/clip"
@@ -244,6 +244,9 @@ func loop(w *app.Window) error {
 				}
 			}
 
+			// outlay.Grid doesn't support registering inputs
+			// (maybe the issue it's just that a cell doesn't have the right constraints)
+			// so I have to do it here
 			for i := 0; i < len(pads); i++ {
 				var pos image.Rectangle
 
