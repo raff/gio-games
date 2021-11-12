@@ -183,17 +183,21 @@ func loop(w *app.Window) error {
 				pad := pads[i]
 
 				if !simonPlay {
-					for _, ev := range gtx.Events(pad.label) {
-						ev, _ := ev.(pointer.Event)
+					if selected >= 0 { // from keyboard
+						user = selected
+					} else {
+						for _, ev := range gtx.Events(pad.label) {
+							ev, _ := ev.(pointer.Event)
 
-						if ev.Type == pointer.Press {
-							user = i
-						} else if ev.Type == pointer.Release {
-							user = -1
+							if ev.Type == pointer.Press {
+								user = i
+							} else if ev.Type == pointer.Release {
+								user = -1
+							}
 						}
-					}
 
-					selected = user
+						selected = user
+					}
 				}
 
 				if selected == i && !audioPlaying {
@@ -211,7 +215,8 @@ func loop(w *app.Window) error {
 				return dims
 			})
 
-			if !simonPlay && user >= 0 { // there are FrameEvents that are not from button clicks
+			if !simonPlay && user >= 0 {
+				// there are FrameEvents that are not from button clicks
 				// if user >= 0 it was a button click
 				simon := sequence.Next()
 				if simon >= 0 {
