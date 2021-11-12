@@ -144,6 +144,7 @@ func loop(w *app.Window) error {
 
 	grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
 	simonPlay := true
+	terminating := false
 	selected := -1
 
 	log.Println("simon play...")
@@ -157,7 +158,7 @@ func loop(w *app.Window) error {
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
-			if simonPlay {
+			if simonPlay || terminating {
 				gtx = gtx.Disabled()
 			}
 
@@ -216,8 +217,10 @@ func loop(w *app.Window) error {
 				if simon >= 0 {
 					log.Println("simon", simon+1, "user", user+1)
 					if simon != user {
+						terminating = true
+
 						time.AfterFunc(playInterval, func() {
-							log.Println("Longest sequence:", sequence.Len())
+							log.Println("Longest correct sequence:", sequence.Len()-1)
 							audioPlay(audioBuzz)
 
 							time.AfterFunc(resetTime, func() {
@@ -226,7 +229,7 @@ func loop(w *app.Window) error {
 						})
 					}
 				}
-				if !sequence.HasNext() {
+				if !terminating && !sequence.HasNext() {
 					time.AfterFunc(resetTime, func() {
 						log.Println("simon play...")
 						simonPlay = true
