@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"image"
 	"image/color"
 	"log"
@@ -21,8 +22,6 @@ import (
 	"gioui.org/unit"
 	"gioui.org/widget"
 	"gioui.org/widget/material"
-
-	"gioui.org/x/outlay"
 )
 
 type (
@@ -101,8 +100,8 @@ func (s *Sequence) HasNext() bool {
 }
 
 var (
-	ww = float32(800)
-	wh = float32(600)
+	ww = 800
+	wh = 600
 
 	playInterval = 500 * time.Millisecond
 	resetTime    = time.Second
@@ -118,6 +117,10 @@ var (
 )
 
 func main() {
+	flag.IntVar(&ww, "width", ww, "initial window width")
+	flag.IntVar(&wh, "height", wh, "initial window height")
+	flag.Parse()
+
 	rand.Seed(time.Now().Unix())
 
 	audioInit()
@@ -125,9 +128,7 @@ func main() {
 	go func() {
 		w := app.NewWindow(
 			app.Title("Simon"),
-			app.Size(unit.Px(ww), unit.Px(wh)),
-			app.MinSize(unit.Px(ww), unit.Px(wh)),
-			app.MaxSize(unit.Px(ww), unit.Px(wh)),
+			app.Size(unit.Px(float32(ww)), unit.Px(float32(wh))),
 		)
 		if err := loop(w); err != nil {
 			log.Fatal(err)
@@ -142,7 +143,7 @@ func loop(w *app.Window) error {
 
 	th := material.NewTheme(gofont.Collection())
 
-	grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
+	// grid := outlay.Grid{Num: 2, Axis: layout.Horizontal}
 	simonPlay := true
 	terminating := false
 	selected := -1
@@ -176,44 +177,51 @@ func loop(w *app.Window) error {
 
 			user := -1
 
-			grid.Layout(gtx, len(pads), func(gtx C, i int) D {
-				gtx.Constraints.Max.X = gtx.Constraints.Max.X / 2
-				gtx.Constraints.Max.Y = int(wh) / 2
+			bbutton := func(gtx layout.Context, index int) layout.Widget {
+				return func(gtx layout.Context) layout.Dimensions {
+					pad := pads[index]
 
-				pad := pads[i]
+					if !simonPlay {
+						if selected >= 0 { // from keyboard
+							user = selected
+						} else {
+							for _, ev := range gtx.Events(pad.label) {
+								ev, _ := ev.(pointer.Event)
 
-				if !simonPlay {
-					if selected >= 0 { // from keyboard
-						user = selected
-					} else {
-						for _, ev := range gtx.Events(pad.label) {
-							ev, _ := ev.(pointer.Event)
-
-							if ev.Type == pointer.Press {
-								user = i
-							} else if ev.Type == pointer.Release {
-								user = -1
+								if ev.Type == pointer.Press {
+									user = index
+								} else if ev.Type == pointer.Release {
+									user = -1
+								}
 							}
+
+							selected = user
 						}
-
-						selected = user
 					}
+
+					if selected == index {
+						log.Println("play", index+1)
+						audioPlay(selected)
+					}
+
+					return pad.Layout(gtx, th, selected == index)
 				}
+			}
 
-				if selected == i && !audioPlaying {
-					log.Println("play", i+1)
-					audioPlay(selected)
-				}
-
-				// Register to listen for pointer events.
-				pr := pointer.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
-				pointer.InputOp{Tag: pad.label, Types: pointer.Press}.Add(gtx.Ops)
-				pr.Pop()
-
-				dims := pad.Layout(gtx, th, selected == i)
-				pointer.CursorNameOp{Name: pointer.CursorPointer}.Add(gtx.Ops)
-				return dims
-			})
+			layout.Flex{Axis: layout.Vertical}.Layout(gtx,
+				layout.Flexed(0.5, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+						layout.Flexed(0.5, bbutton(gtx, 0)),
+						layout.Flexed(0.5, bbutton(gtx, 1)),
+					)
+				}),
+				layout.Flexed(0.5, func(gtx layout.Context) layout.Dimensions {
+					return layout.Flex{Axis: layout.Horizontal}.Layout(gtx,
+						layout.Flexed(0.5, bbutton(gtx, 2)),
+						layout.Flexed(0.5, bbutton(gtx, 3)),
+					)
+				}),
+			)
 
 			if !simonPlay && user >= 0 {
 				// there are FrameEvents that are not from button clicks
@@ -244,21 +252,18 @@ func loop(w *app.Window) error {
 				}
 			}
 
-			// outlay.Grid doesn't support registering inputs
-			// (maybe the issue it's just that a cell doesn't have the right constraints)
-			// so I have to do it here
 			for i := 0; i < len(pads); i++ {
 				var pos image.Rectangle
 
 				switch i {
 				case 0:
-					pos = image.Rect(0, 0, int(ww/2), int(wh/2))
+					pos = image.Rect(0, 0, e.Size.X/2, e.Size.Y/2)
 				case 1:
-					pos = image.Rect(int(ww/2), 0, int(ww), int(wh/2))
+					pos = image.Rect(e.Size.X/2, 0, e.Size.X, e.Size.Y/2)
 				case 2:
-					pos = image.Rect(0, int(wh/2), int(ww/2), int(wh))
+					pos = image.Rect(0, e.Size.Y/2, e.Size.X/2, e.Size.Y)
 				case 3:
-					pos = image.Rect(int(ww/2), int(wh/2), int(ww), int(wh))
+					pos = image.Rect(e.Size.X/2, e.Size.Y/2, e.Size.X, e.Size.Y)
 				}
 
 				// Register to listen for pointer events.
