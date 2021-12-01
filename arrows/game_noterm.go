@@ -2,7 +2,7 @@
 
 package main
 
-func termGame() {}
+func termGame(terminate func()) {}
 
 func audioInit() {}
 
