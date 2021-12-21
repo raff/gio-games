@@ -1,9 +1,9 @@
-module github.com/raff/arrows
+module github.com/raff/gio-games/arrows
 
 go 1.17
 
 require (
-	gioui.org v0.0.0-20211026101311-1eab4b84a6d3
+	gioui.org v0.0.0-20211201165704-e6e69812af7f
 	github.com/disintegration/imaging v1.6.2
 	github.com/faiface/beep v1.1.0
 	github.com/gdamore/tcell/v2 v2.4.0
