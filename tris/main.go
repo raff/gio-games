@@ -100,6 +100,9 @@ func initGame() {
 
 			y += vsize
 		}
+
+		gw, gh = factors(len(cards))
+		ww, wh = gw*tw, (gh+1)*th/2
 	}
 
 	rand.Shuffle(len(cards), func(i, j int) {
@@ -107,10 +110,6 @@ func initGame() {
 			cards[i], cards[j] = cards[j], cards[i]
 		}
 	})
-
-	gw, gh = factors(len(cards))
-	ww, wh = gw*tw, (gh+1)*th/2
-
 	canvas = imaging.New(ww, wh, borderColor)
 	drawCards(nil)
 }
@@ -146,8 +145,10 @@ func cardIndex(x, y int) int {
 
 	if x >= 0 && x < gw && y >= 0 && y < gh {
 		ci := gameIndex(x, y)
-		if y == gh-1 || cards[ci+gw] == -1 { // last valid card in a column
-			if cards[ci] >= 0 {
+		nextrow := ci + gw
+
+		if y == gh-1 || nextrow >= len(cards) || cards[nextrow] == -1 { // last valid card in a column
+			if ci < len(cards) && cards[ci] >= 0 {
 				//log.Println("card", ci)
 				return ci
 			}
@@ -164,7 +165,7 @@ func factors(n int) (int, int) {
 			m2 := n / i
 
 			if m2 >= m1 {
-				return m2, m1
+				return m1, m2
 			}
 		}
 	}
@@ -172,13 +173,22 @@ func factors(n int) (int, int) {
 	return n, 1
 }
 
-func setTitle(w *app.Window, title string) {
-	if title == "" {
-		score := mpoints * (curmatches + 1) / (shuffles + 1)
-
-		title = fmt.Sprintf("Tris - matches: %v max.matches: %v shuffles: %v score: %v",
-			curmatches, maxmatches, shuffles, score)
+func max(a, b int) int {
+	if a > b {
+		return a
 	}
+
+	return b
+}
+
+func getScore() string {
+	score := max(max(mpoints*(curmatches+1)/(shuffles+1), curmatches), maxmatches)
+
+	return fmt.Sprintf("Tris - matches: %v max.matches: %v shuffles: %v score: %v (%v)",
+		curmatches, maxmatches, shuffles, score, mpoints)
+}
+
+func setTitle(w *app.Window, title string) {
 	wopts[0] = app.Title(title)
 	w.Option(wopts...)
 }
@@ -225,6 +235,10 @@ func loop(w *app.Window) error {
 	var matches map[int]bool
 	match := -1
 
+	defer func() {
+		fmt.Println(getScore())
+	}()
+
 	for {
 		e := <-w.Events()
 		switch e := e.(type) {
@@ -240,10 +254,12 @@ func loop(w *app.Window) error {
 					initGame()
 					frame = nil
 					match = -1
-					mpoints *= curmatches
+					if curmatches > 0 {
+						mpoints *= curmatches
+					}
 					curmatches = 0
 					shuffles++
-					setTitle(w, "")
+					setTitle(w, getScore())
 					w.Invalidate()
 				}
 			}
@@ -280,7 +296,20 @@ func loop(w *app.Window) error {
 								if curmatches > maxmatches {
 									maxmatches = curmatches
 								}
-								setTitle(w, "")
+								setTitle(w, getScore())
+
+								for len(cards) > 0 {
+									last := len(cards) - 1
+									if cards[last] == -1 {
+										cards = cards[:last]
+									} else {
+										break
+									}
+								}
+
+								if len(cards) == 0 {
+									w.Close()
+								}
 							}
 
 							drawCards(matches)
