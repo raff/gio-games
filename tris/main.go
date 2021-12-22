@@ -53,11 +53,14 @@ var (
 
 	mcount = 2
 
-	curmatches = 0
-	maxmatches = 0
-	shuffles   = 0
+	curmatches   = 0
+	maxmatches   = 0
+	totalmatches = 0
+	shuffles     = 0
 
 	mpoints = 1
+	spoints = 1
+	score   = 0
 
 	wopts []app.Option
 )
@@ -182,10 +185,8 @@ func max(a, b int) int {
 }
 
 func getScore() string {
-	score := max(max(mpoints*(curmatches+1)/(shuffles+1), curmatches), maxmatches)
-
-	return fmt.Sprintf("Tris - matches: %v max.matches: %v shuffles: %v score: %v (%v)",
-		curmatches, maxmatches, shuffles, score, mpoints)
+	return fmt.Sprintf("Tris - matches:%v  max.matches:%v  total:%v  shuffles:%v  score:%v  (%v)",
+		curmatches, maxmatches, totalmatches, shuffles, score, spoints)
 }
 
 func setTitle(w *app.Window, title string) {
@@ -253,12 +254,16 @@ func loop(w *app.Window) error {
 				case "R":
 					initGame()
 					frame = nil
-					match = -1
-					if curmatches > 0 {
-						mpoints *= curmatches
-					}
-					curmatches = 0
+
 					shuffles++
+					mpoints += curmatches
+					spoints = int((float32(mpoints) + 0.5) / float32(shuffles))
+					if spoints == 0 {
+						spoints = 1
+					}
+
+					match = -1
+					curmatches = 0
 					setTitle(w, getScore())
 					w.Invalidate()
 				}
@@ -293,6 +298,8 @@ func loop(w *app.Window) error {
 								match = -1
 
 								curmatches++
+								totalmatches++
+								score += spoints
 								if curmatches > maxmatches {
 									maxmatches = curmatches
 								}
