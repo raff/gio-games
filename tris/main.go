@@ -9,6 +9,7 @@ import (
 	"image/png"
 	"log"
 	"os"
+	"sort"
 	"time"
 
 	"math/rand"
@@ -94,10 +95,12 @@ func initGame() {
 
 				cards = append(cards, card)
 				cards = append(cards, card)
+
 				cards = append(cards, card)
 				cards = append(cards, card)
 				cards = append(cards, card)
 				cards = append(cards, card)
+
 				x += hsize
 			}
 
@@ -108,11 +111,39 @@ func initGame() {
 		ww, wh = gw*tw, (gh+1)*th/2
 	}
 
-	rand.Shuffle(len(cards), func(i, j int) {
-		if cards[i] != -1 && cards[j] != -1 {
-			cards[i], cards[j] = cards[j], cards[i]
+	cols := 0
+
+	for i, c := range cards {
+		if i >= gw {
+			break
 		}
-	})
+
+		if c != -1 {
+			cols++
+		}
+	}
+
+	if cols == 1 {
+		// only one column left
+		// make it one row
+
+		cc := make([]int, 0, gh)
+
+		for _, c := range cards {
+			if c != -1 {
+				cc = append(cc, c)
+			}
+		}
+
+		cards = cc
+	} else {
+		rand.Shuffle(len(cards), func(i, j int) {
+			if cards[i] != -1 && cards[j] != -1 {
+				cards[i], cards[j] = cards[j], cards[i]
+			}
+		})
+	}
+
 	canvas = imaging.New(ww, wh, borderColor)
 	drawCards(nil)
 }
@@ -145,7 +176,10 @@ func cardIndex(x, y int) int {
 	y /= (th / 2)
 
 	//log.Println("cardIndex", x, y)
+	return playable(x, y)
+}
 
+func playable(x, y int) int {
 	if x >= 0 && x < gw && y >= 0 && y < gh {
 		ci := gameIndex(x, y)
 		nextrow := ci + gw
@@ -217,28 +251,80 @@ func main() {
 	app.Main()
 }
 
-func gameState() draw.Image {
-	return canvas
-}
-
-//func gameCoords(x, y int) (int, int) {
-//      return x / tw, y / th
-//}
-
 func gameIndex(x, y int) int {
 	return y*gw + x
 }
 
 func loop(w *app.Window) error {
 	var ops op.Ops
-	var frame draw.Image
 
 	var matches map[int]bool
 	match := -1
 
+	autoplay := false
+
 	defer func() {
 		fmt.Println(getScore())
 	}()
+
+	playCard := func(ci int) {
+		card := cards[ci]
+
+		if match != card {
+			match = card
+			matches = map[int]bool{ci: true}
+		} else {
+			matches[ci] = true
+		}
+
+		if len(matches) == mcount {
+			for k, _ := range matches {
+				cards[k] = -1
+			}
+
+			matches = nil
+			match = -1
+
+			curmatches++
+			totalmatches++
+			score += spoints
+			if curmatches > maxmatches {
+				maxmatches = curmatches
+			}
+			setTitle(w, getScore())
+
+			for len(cards) > 0 {
+				last := len(cards) - 1
+				if cards[last] == -1 {
+					cards = cards[:last]
+				} else {
+					break
+				}
+			}
+
+			if len(cards) == 0 {
+				w.Close()
+			}
+		}
+
+		drawCards(matches)
+		w.Invalidate()
+	}
+
+	shuffle := func() {
+		initGame()
+
+		shuffles++
+		mpoints += curmatches
+		spoints = int((float32(mpoints) + 0.5) / float32(shuffles))
+		if spoints == 0 {
+			spoints = 1
+		}
+
+		match = -1
+		curmatches = 0
+		setTitle(w, getScore())
+	}
 
 	for {
 		e := <-w.Events()
@@ -252,81 +338,69 @@ func loop(w *app.Window) error {
 				case key.NameEscape, "Q", "X":
 					w.Close()
 				case "R":
-					initGame()
-					frame = nil
-
-					shuffles++
-					mpoints += curmatches
-					spoints = int((float32(mpoints) + 0.5) / float32(shuffles))
-					if spoints == 0 {
-						spoints = 1
-					}
-
-					match = -1
-					curmatches = 0
-					setTitle(w, getScore())
+					shuffle()
+					w.Invalidate()
+				case "A":
+					autoplay = !autoplay
+					fmt.Println("autoplay:", autoplay)
 					w.Invalidate()
 				}
 			}
 
 		case system.FrameEvent:
 			gtx := layout.NewContext(&ops, e)
-			if frame == nil {
-				frame = gameState()
-			}
 
-			for _, ev := range gtx.Events("tris") {
-				if ev, ok := ev.(pointer.Event); ok {
-					if ev.Type == pointer.Press {
-						ci := cardIndex(int(ev.Position.X), int(ev.Position.Y))
-						if ci >= 0 {
-							card := cards[ci]
+			if autoplay {
+				playcards := make([]struct{ i, c int }, gw)
+				for x := range playcards {
+					playcards[x] = struct{ i, c int }{-1, -1}
 
-							if match != card {
-								match = card
-								matches = map[int]bool{ci: true}
-							} else {
-								matches[ci] = true
+					for y := gh - 1; y >= 0; y-- {
+						if ci := playable(x, y); ci >= 0 {
+							playcards[x] = struct{ i, c int }{ci, cards[ci]}
+							break
+						}
+					}
+				}
+
+				sort.Slice(playcards, func(i, j int) bool {
+					return playcards[i].c >= playcards[j].c
+				})
+
+				if playcards[0].i == -1 {
+					fmt.Println("no valid cards")
+					autoplay = false
+					continue
+				}
+
+				matched := false
+				for i := 0; i < len(playcards)-1; i++ {
+					if playcards[i+0].i >= 0 && playcards[i+0].c == playcards[i+1].c {
+						playCard(playcards[i+0].i)
+						playCard(playcards[i+1].i)
+						matched = true
+						break
+					}
+				}
+
+				if !matched {
+					shuffle()
+					w.Invalidate()
+				}
+			} else {
+				for _, ev := range gtx.Events("tris") {
+					if ev, ok := ev.(pointer.Event); ok {
+						if ev.Type == pointer.Press {
+							ci := cardIndex(int(ev.Position.X), int(ev.Position.Y))
+							if ci >= 0 {
+								playCard(ci)
 							}
-
-							if len(matches) == mcount {
-								for k, _ := range matches {
-									cards[k] = -1
-								}
-
-								matches = nil
-								match = -1
-
-								curmatches++
-								totalmatches++
-								score += spoints
-								if curmatches > maxmatches {
-									maxmatches = curmatches
-								}
-								setTitle(w, getScore())
-
-								for len(cards) > 0 {
-									last := len(cards) - 1
-									if cards[last] == -1 {
-										cards = cards[:last]
-									} else {
-										break
-									}
-								}
-
-								if len(cards) == 0 {
-									w.Close()
-								}
-							}
-
-							drawCards(matches)
-							w.Invalidate()
 						}
 					}
 				}
 			}
 
-			canvasOp := paint.NewImageOp(frame)
+			canvasOp := paint.NewImageOp(canvas)
 			img := widget.Image{Src: canvasOp}
 			img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
 			img.Layout(gtx)
@@ -336,6 +410,10 @@ func loop(w *app.Window) error {
 			pr.Pop()
 
 			e.Frame(gtx.Ops)
+
+			if autoplay {
+				w.Invalidate()
+			}
 		}
 	}
 }
