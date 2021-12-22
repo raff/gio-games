@@ -52,6 +52,14 @@ var (
 	cards []int // gw * gh tiles, card indices
 
 	mcount = 2
+
+	curmatches = 0
+	maxmatches = 0
+	shuffles   = 0
+
+	mpoints = 1
+
+	wopts []app.Option
 )
 
 func initGame() {
@@ -134,13 +142,13 @@ func cardIndex(x, y int) int {
 	x /= tw
 	y /= (th / 2)
 
-	log.Println("cardIndex", x, y)
+	//log.Println("cardIndex", x, y)
 
 	if x >= 0 && x < gw && y >= 0 && y < gh {
 		ci := gameIndex(x, y)
 		if y == gh-1 || cards[ci+gw] == -1 { // last valid card in a column
 			if cards[ci] >= 0 {
-				log.Println("card", ci)
+				//log.Println("card", ci)
 				return ci
 			}
 		}
@@ -164,19 +172,32 @@ func factors(n int) (int, int) {
 	return n, 1
 }
 
+func setTitle(w *app.Window, title string) {
+	if title == "" {
+		score := mpoints * (curmatches + 1) / (shuffles + 1)
+
+		title = fmt.Sprintf("Tris - matches: %v max.matches: %v shuffles: %v score: %v",
+			curmatches, maxmatches, shuffles, score)
+	}
+	wopts[0] = app.Title(title)
+	w.Option(wopts...)
+}
+
 func main() {
 	rand.Seed(time.Now().Unix())
 
 	initGame()
-	fmt.Println(factors(len(cards)))
+	//log.Println(factors(len(cards)))
+
+	wopts = []app.Option{
+		app.Title("Tris"),
+		app.Size(unit.Px(float32(ww)), unit.Px(float32(wh))),
+		app.MinSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
+		app.MaxSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
+	}
 
 	go func() {
-		w := app.NewWindow(
-			app.Title("Tris"),
-			app.Size(unit.Px(float32(ww)), unit.Px(float32(wh))),
-			app.MinSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
-			app.MaxSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
-		)
+		w := app.NewWindow(wopts...)
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
@@ -219,6 +240,10 @@ func loop(w *app.Window) error {
 					initGame()
 					frame = nil
 					match = -1
+					mpoints *= curmatches
+					curmatches = 0
+					shuffles++
+					setTitle(w, "")
 					w.Invalidate()
 				}
 			}
@@ -250,6 +275,12 @@ func loop(w *app.Window) error {
 
 								matches = nil
 								match = -1
+
+								curmatches++
+								if curmatches > maxmatches {
+									maxmatches = curmatches
+								}
+								setTitle(w, "")
 							}
 
 							drawCards(matches)
