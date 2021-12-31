@@ -50,7 +50,7 @@ var (
 	gw, gh int // number of horizontal and vertical tiles in game
 	ww, wh int // window width and height
 
-	cards []int // gw * gh tiles, card indices
+	cards [][]int // gw columns of gh tiles (card indices)
 
 	mcount = 2
 
@@ -67,6 +67,8 @@ var (
 )
 
 func initGame() {
+	var lcards []int
+
 	if len(tiles) == 0 {
 		img, err := png.Decode(bytes.NewBuffer(pngTiles))
 		if err != nil {
@@ -93,13 +95,12 @@ func initGame() {
 					im, image.Point{}, draw.Over)
 				tiles = append(tiles, tile)
 
-				cards = append(cards, card)
-				cards = append(cards, card)
-
-				cards = append(cards, card)
-				cards = append(cards, card)
-				cards = append(cards, card)
-				cards = append(cards, card)
+				lcards = append(lcards, card)
+				lcards = append(lcards, card)
+				lcards = append(lcards, card)
+				lcards = append(lcards, card)
+				lcards = append(lcards, card)
+				lcards = append(lcards, card)
 
 				x += hsize
 			}
@@ -107,19 +108,27 @@ func initGame() {
 			y += vsize
 		}
 
-		gw, gh = factors(len(cards))
+		gw, gh = factors(len(lcards))
 		ww, wh = gw*tw, (gh+1)*th/2
+
+		cards = make([][]int, gw)
+
+		for i := range cards {
+			cards[i] = make([]int, gh)
+		}
 	}
 
 	cols := 0
+	ci := -1
 
-	for i, c := range cards {
-		if i >= gw {
-			break
-		}
+	if len(lcards) == 0 {
+		for i, col := range cards {
+			lcards = append(lcards, col...)
 
-		if c != -1 {
-			cols++
+			if len(col) > 0 {
+				cols++
+				ci = i
+			}
 		}
 	}
 
@@ -127,21 +136,26 @@ func initGame() {
 		// only one column left
 		// make it one row
 
-		cc := make([]int, 0, gh)
+		cards[ci] = nil
 
-		for _, c := range cards {
-			if c != -1 {
-				cc = append(cc, c)
-			}
+		for i, c := range lcards {
+			cards[i] = []int{c}
 		}
-
-		cards = cc
 	} else {
-		rand.Shuffle(len(cards), func(i, j int) {
-			if cards[i] != -1 && cards[j] != -1 {
-				cards[i], cards[j] = cards[j], cards[i]
+		rand.Shuffle(len(lcards), func(i, j int) {
+			if lcards[i] != -1 && lcards[j] != -1 {
+				lcards[i], lcards[j] = lcards[j], lcards[i]
 			}
 		})
+
+		i := 0
+
+		for x, col := range cards {
+			for y := range col {
+				cards[x][y] = lcards[i]
+				i++
+			}
+		}
 	}
 
 	canvas = imaging.New(ww, wh, borderColor)
@@ -151,44 +165,39 @@ func initGame() {
 func drawCards(revs map[int]bool) {
 	draw.Draw(canvas, canvas.Bounds(), &image.Uniform{borderColor}, image.ZP, draw.Src)
 
-	for ti, ci := range cards {
-		x := ti % gw
-		y := (ti / gw) % gh
+	for x, col := range cards {
+		for y, card := range col {
+			im := tiles[card]
+			ci := gameIndex(x, y)
 
-		if ci < 0 {
-			continue
+			if revs != nil && revs[ci] {
+				im = imaging.Invert(im)
+			}
+
+			draw.Draw(canvas,
+				im.Bounds().Add(image.Point{x * tw, y * th / 2}),
+				im, image.Point{}, draw.Over)
 		}
-
-		im := tiles[ci]
-
-		if revs != nil && revs[ti] {
-			im = imaging.Invert(im)
-		}
-
-		draw.Draw(canvas,
-			im.Bounds().Add(image.Point{x * tw, y * th / 2}),
-			im, image.Point{}, draw.Over)
 	}
 }
 
-func cardIndex(x, y int) int {
+func cardIndex(x, y int) (int, int, int) {
 	x /= tw
 	y /= (th / 2)
 
 	//log.Println("cardIndex", x, y)
-	return playable(x, y)
+	if c := playable(x, y); c >= 0 {
+		return x, y, c
+	}
+
+	return -1, -1, -1
 }
 
 func playable(x, y int) int {
 	if x >= 0 && x < gw && y >= 0 && y < gh {
-		ci := gameIndex(x, y)
-		nextrow := ci + gw
-
-		if y == gh-1 || nextrow >= len(cards) || cards[nextrow] == -1 { // last valid card in a column
-			if ci < len(cards) && cards[ci] >= 0 {
-				//log.Println("card", ci)
-				return ci
-			}
+		col := cards[x]
+		if y == len(col)-1 { // last valid card in a column
+			return col[y]
 		}
 	}
 
@@ -255,6 +264,12 @@ func gameIndex(x, y int) int {
 	return y*gw + x
 }
 
+func gameCoord(gi int) (int, int) {
+	y := gi / gw
+	x := gi % gw
+	return x, y
+}
+
 func loop(w *app.Window) error {
 	var ops op.Ops
 
@@ -267,8 +282,9 @@ func loop(w *app.Window) error {
 		fmt.Println(getScore())
 	}()
 
-	playCard := func(ci int) {
-		card := cards[ci]
+	playCard := func(x, y int) {
+		card := playable(x, y)
+		ci := gameIndex(x, y)
 
 		if match != card {
 			match = card
@@ -278,8 +294,9 @@ func loop(w *app.Window) error {
 		}
 
 		if len(matches) == mcount {
-			for k, _ := range matches {
-				cards[k] = -1
+			for gi, _ := range matches {
+				x, y := gameCoord(gi)
+				cards[x] = cards[x][:y]
 			}
 
 			matches = nil
@@ -293,16 +310,13 @@ func loop(w *app.Window) error {
 			}
 			setTitle(w, getScore())
 
-			for len(cards) > 0 {
-				last := len(cards) - 1
-				if cards[last] == -1 {
-					cards = cards[:last]
-				} else {
-					break
-				}
+			lc := 0
+
+			for _, col := range cards {
+				lc += len(col)
 			}
 
-			if len(cards) == 0 {
+			if lc == 0 {
 				w.Close()
 			}
 		}
@@ -351,33 +365,28 @@ func loop(w *app.Window) error {
 			gtx := layout.NewContext(&ops, e)
 
 			if autoplay {
-				playcards := make([]struct{ i, c int }, gw)
-				for x := range playcards {
-					playcards[x] = struct{ i, c int }{-1, -1}
-
-					for y := gh - 1; y >= 0; y-- {
-						if ci := playable(x, y); ci >= 0 {
-							playcards[x] = struct{ i, c int }{ci, cards[ci]}
-							break
-						}
-					}
+				playcards := make([]struct{ y, c int }, gw)
+				for x, col := range cards {
+					y := len(col) - 1
+					c := playable(x, y)
+					playcards[x] = struct{ y, c int }{y, c}
 				}
 
 				sort.Slice(playcards, func(i, j int) bool {
 					return playcards[i].c >= playcards[j].c
 				})
 
-				if playcards[0].i == -1 {
+				if playcards[0].c == -1 {
 					fmt.Println("no valid cards")
 					autoplay = false
 					continue
 				}
 
 				matched := false
-				for i := 0; i < len(playcards)-1; i++ {
-					if playcards[i+0].i >= 0 && playcards[i+0].c == playcards[i+1].c {
-						playCard(playcards[i+0].i)
-						playCard(playcards[i+1].i)
+				for x := 0; x < len(playcards)-1; x++ {
+					if playcards[x+0].c >= 0 && playcards[x+0].c == playcards[x+1].c {
+						playCard(x+0, playcards[x+0].y)
+						playCard(x+1, playcards[x+1].y)
 						matched = true
 						break
 					}
@@ -391,9 +400,9 @@ func loop(w *app.Window) error {
 				for _, ev := range gtx.Events("tris") {
 					if ev, ok := ev.(pointer.Event); ok {
 						if ev.Type == pointer.Press {
-							ci := cardIndex(int(ev.Position.X), int(ev.Position.Y))
-							if ci >= 0 {
-								playCard(ci)
+							x, y, c := cardIndex(int(ev.Position.X), int(ev.Position.Y))
+							if c >= 0 {
+								playCard(x, y)
 							}
 						}
 					}
