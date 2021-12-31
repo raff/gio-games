@@ -365,11 +365,12 @@ func loop(w *app.Window) error {
 			gtx := layout.NewContext(&ops, e)
 
 			if autoplay {
-				playcards := make([]struct{ y, c int }, gw)
+				playcards := make([]struct{ x, y, c int }, len(cards))
+
 				for x, col := range cards {
 					y := len(col) - 1
 					c := playable(x, y)
-					playcards[x] = struct{ y, c int }{y, c}
+					playcards[x] = struct{ x, y, c int }{x, y, c}
 				}
 
 				sort.Slice(playcards, func(i, j int) bool {
@@ -383,10 +384,14 @@ func loop(w *app.Window) error {
 				}
 
 				matched := false
-				for x := 0; x < len(playcards)-1; x++ {
-					if playcards[x+0].c >= 0 && playcards[x+0].c == playcards[x+1].c {
-						playCard(x+0, playcards[x+0].y)
-						playCard(x+1, playcards[x+1].y)
+
+				for i := 0; i < len(playcards)-1; i++ {
+					pc0 := playcards[i+0]
+					pc1 := playcards[i+1]
+
+					if pc0.c >= 0 && pc0.c == pc1.c {
+						playCard(pc0.x, pc0.y)
+						playCard(pc1.x, pc1.y)
 						matched = true
 						break
 					}
