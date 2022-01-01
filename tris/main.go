@@ -186,22 +186,25 @@ func cardIndex(x, y int) (int, int, int) {
 	y /= (th / 2)
 
 	//log.Println("cardIndex", x, y)
-	if c := playable(x, y); c >= 0 {
+	if x, y, c := playable(x, y); c >= 0 {
 		return x, y, c
 	}
 
 	return -1, -1, -1
 }
 
-func playable(x, y int) int {
-	if x >= 0 && x < gw && y >= 0 && y < gh {
+func playable(x, y int) (int, int, int) {
+	if x >= 0 && x < gw && y >= 0 && y <= gh {
 		col := cards[x]
+		if y == len(col) { // bottom part of last card
+			y--
+		}
 		if y == len(col)-1 { // last valid card in a column
-			return col[y]
+			return x, y, col[y]
 		}
 	}
 
-	return -1
+	return -1, -1, -1
 }
 
 func factors(n int) (int, int) {
@@ -283,7 +286,7 @@ func loop(w *app.Window) error {
 	}()
 
 	playCard := func(x, y int) {
-		card := playable(x, y)
+		x, y, card := playable(x, y)
 		ci := gameIndex(x, y)
 
 		if match != card {
@@ -369,7 +372,7 @@ func loop(w *app.Window) error {
 
 				for x, col := range cards {
 					y := len(col) - 1
-					c := playable(x, y)
+					_, _, c := playable(x, y)
 					playcards[x] = struct{ x, y, c int }{x, y, c}
 				}
 
