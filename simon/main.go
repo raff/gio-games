@@ -101,7 +101,7 @@ func (s *Sequence) HasNext() bool {
 
 var (
 	ww = 800
-	wh = 600
+	wh = 800
 
 	playInterval = 500 * time.Millisecond
 	resetTime    = time.Second
@@ -119,6 +119,7 @@ var (
 func main() {
 	flag.IntVar(&ww, "width", ww, "initial window width")
 	flag.IntVar(&wh, "height", wh, "initial window height")
+	center := flag.Bool("center", false, "center window")
 	flag.Parse()
 
 	rand.Seed(time.Now().Unix())
@@ -129,7 +130,14 @@ func main() {
 		w := app.NewWindow(
 			app.Title("Simon"),
 			app.Size(unit.Px(float32(ww)), unit.Px(float32(wh))),
+			//app.MinSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
+			//app.MaxSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
 		)
+
+		if *center {
+			w.Center()
+		}
+
 		if err := loop(w); err != nil {
 			log.Fatal(err)
 		}
@@ -267,7 +275,7 @@ func loop(w *app.Window) error {
 				}
 
 				// Register to listen for pointer events.
-				pr := pointer.Rect(pos).Push(gtx.Ops)
+				pr := clip.Rect(pos).Push(gtx.Ops)
 				pointer.InputOp{Tag: pads[i].label, Types: pointer.Press | pointer.Release}.Add(gtx.Ops)
 				pr.Pop()
 			}
