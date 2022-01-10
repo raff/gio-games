@@ -114,12 +114,14 @@ var (
 	}
 
 	sequence = Sequence{maxval: 4}
+
+	center = true
 )
 
 func main() {
 	flag.IntVar(&ww, "width", ww, "initial window width")
 	flag.IntVar(&wh, "height", wh, "initial window height")
-	center := flag.Bool("center", false, "center window")
+	flag.BoolVar(&center, "center", center, "center window")
 	flag.Parse()
 
 	rand.Seed(time.Now().Unix())
@@ -133,10 +135,6 @@ func main() {
 			//app.MinSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
 			//app.MaxSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
 		)
-
-		if *center {
-			w.Center()
-		}
 
 		if err := loop(w); err != nil {
 			log.Fatal(err)
@@ -166,6 +164,12 @@ func loop(w *app.Window) error {
 			return e.Err
 
 		case system.FrameEvent:
+			if center {
+				center = false
+				w.Center()
+				continue
+			}
+
 			gtx := layout.NewContext(&ops, e)
 			if simonPlay || terminating {
 				gtx = gtx.Disabled()
