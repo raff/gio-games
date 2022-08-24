@@ -22,6 +22,7 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -246,11 +247,15 @@ func main() {
 	initGame()
 	//log.Println(factors(len(cards)))
 
+	// convert pixels to same ratio
+	h := float32(1200*wh) / float32(ww)
+	w := float32(1200)
+
 	wopts = []app.Option{
 		app.Title("Tris"),
-		app.Size(unit.Px(float32(ww)), unit.Px(float32(wh))),
-		app.MinSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
-		app.MaxSize(unit.Px(float32(ww)), unit.Px(float32(wh))),
+		app.Size(unit.Dp(w), unit.Dp(h)),
+		//app.MinSize(unit.Dp(w), unit.Dp(h)),
+		//app.MaxSize(unit.Dp(w), unit.Dp(h)),
 	}
 
 	go func() {
@@ -285,7 +290,7 @@ func loop(w *app.Window) error {
 		fmt.Println(getScore())
 	}()
 
-	playCard := func(x, y int) {
+	playCard := func(x, y int) bool {
 		x, y, card := playable(x, y)
 		ci := gameIndex(x, y)
 
@@ -320,12 +325,14 @@ func loop(w *app.Window) error {
 			}
 
 			if lc == 0 {
-				w.Close()
+				return false
 			}
 		}
 
 		drawCards(matches)
 		w.Invalidate()
+
+		return true
 	}
 
 	shuffle := func() {
@@ -353,7 +360,7 @@ func loop(w *app.Window) error {
 			if e.State == key.Press {
 				switch e.Name {
 				case key.NameEscape, "Q", "X":
-					w.Close()
+					return nil
 				case "R":
 					shuffle()
 					w.Invalidate()
@@ -393,8 +400,12 @@ func loop(w *app.Window) error {
 					pc1 := playcards[i+1]
 
 					if pc0.c >= 0 && pc0.c == pc1.c {
-						playCard(pc0.x, pc0.y)
-						playCard(pc1.x, pc1.y)
+						if !playCard(pc0.x, pc0.y) {
+							return nil
+						}
+						if !playCard(pc1.x, pc1.y) {
+							return nil
+						}
 						matched = true
 						break
 					}
@@ -419,10 +430,10 @@ func loop(w *app.Window) error {
 
 			canvasOp := paint.NewImageOp(canvas)
 			img := widget.Image{Src: canvasOp}
-			img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
+			img.Scale = 1 / gtx.Metric.PxPerDp
 			img.Layout(gtx)
 
-			pr := pointer.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
+			pr := clip.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
 			pointer.InputOp{Tag: "tris", Types: pointer.Press}.Add(gtx.Ops)
 			pr.Pop()
 
