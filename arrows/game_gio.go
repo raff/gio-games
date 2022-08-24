@@ -17,6 +17,7 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -83,11 +84,14 @@ func gioGame(terminate func()) {
 		gDot = img
 	}
 
+        ww := float32(gameWidth*cell.X) / 2
+        wh := float32(gameHeight*cell.Y) / 2
+
 	wopts = []app.Option{
 		app.Title("Arrows"), // title is first option
-		app.Size(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
-		app.MinSize(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
-		app.MaxSize(unit.Px(float32(gameWidth*cell.X)), unit.Px(float32(gameHeight*cell.Y))),
+		app.Size(unit.Dp(ww), unit.Dp(wh)),
+		app.MinSize(unit.Dp(ww), unit.Dp(wh)),
+		app.MaxSize(unit.Dp(ww), unit.Dp(wh)),
 	}
 
 	go func() {
@@ -226,7 +230,7 @@ func loop(w *app.Window) {
 				}
 
 				// Register to listen for pointer events.
-				pr := pointer.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
+				pr := clip.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
 				pointer.InputOp{Tag: gDirs, Types: pointer.Press | pointer.Move}.Add(gtx.Ops)
 				pr.Pop()
 
@@ -239,7 +243,7 @@ func loop(w *app.Window) {
 			if e.State == key.Press {
 				switch e.Name {
 				case key.NameEscape, "Q", "X":
-					w.Close()
+					return // w.Close()
 
 				case key.NameUpArrow:
 					sx, sy := game.ScreenCoords(0, 0, cx, cy-1)
@@ -367,7 +371,7 @@ func render(gtx layout.Context, gw, gh, px, py int, pressed, dotscreen bool) lay
 
 	canvasOp := paint.NewImageOp(canvas)
 	img := widget.Image{Src: canvasOp}
-	img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
+	img.Scale = 1 / float32(gtx.Dp(unit.Dp(1)))
 
 	return img.Layout(gtx)
 }

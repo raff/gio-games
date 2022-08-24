@@ -8,7 +8,7 @@ js:
 	gogio -target js .
 
 ios:
-	gogio -target ios -o arrows.app .
+	gogio -target ios -x -o arrows.app .
 
 android:
 	gogio -target android .
