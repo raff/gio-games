@@ -3,8 +3,8 @@
 package main
 
 const (
-    AudioFlip = 0
-    AudioReset = 1
+	AudioFlip  = 0
+	AudioReset = 1
 )
 
 func audioInit() {}

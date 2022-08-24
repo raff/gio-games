@@ -22,6 +22,7 @@ import (
 	"gioui.org/io/system"
 	"gioui.org/layout"
 	"gioui.org/op"
+	"gioui.org/op/clip"
 	"gioui.org/op/paint"
 	"gioui.org/unit"
 	"gioui.org/widget"
@@ -163,9 +164,9 @@ func main() {
 	go func() {
 		w := app.NewWindow(
 			app.Title("Memory"),
-			app.Size(unit.Px(float32(gw*tw)), unit.Px(float32(gh*th))),
-			app.MinSize(unit.Px(float32(gw*tw)), unit.Px(float32(gh*th))),
-			app.MaxSize(unit.Px(float32(gw*tw)), unit.Px(float32(gh*th))),
+			app.Size(unit.Dp(gw*tw/2), unit.Dp(gh*th/2)),
+			app.MinSize(unit.Dp(gw*tw/2), unit.Dp(gh*th/2)),
+			app.MaxSize(unit.Dp(gw*tw/2), unit.Dp(gh*th/2)),
 		)
 		if err := loop(w); err != nil {
 			log.Fatal(err)
@@ -221,7 +222,7 @@ func loop(w *app.Window) error {
 			if e.State == key.Press {
 				switch e.Name {
 				case key.NameEscape, "Q", "X":
-					w.Close()
+					return nil
 				case "R":
 					initGame()
 					deal = deal[:0]
@@ -289,18 +290,18 @@ func loop(w *app.Window) error {
 
 			canvasOp := paint.NewImageOp(frame)
 			img := widget.Image{Src: canvasOp}
-			img.Scale = 1 / float32(gtx.Px(unit.Dp(1)))
+			img.Scale = 1 / gtx.Metric.PxPerDp
 			img.Layout(gtx)
 
 			// Register to listen for pointer events.
-			pr := pointer.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
+			pr := clip.Rect(image.Rectangle{Max: e.Size}).Push(gtx.Ops)
 			pointer.InputOp{Tag: "memory", Types: pointer.Press}.Add(gtx.Ops)
 			pr.Pop()
 
 			e.Frame(gtx.Ops)
 
 			if matches == maxcards {
-				w.Close()
+				return nil
 			}
 		}
 	}
